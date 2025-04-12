@@ -1,4 +1,3 @@
-
 import { useEffect, useState } from 'react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { 
@@ -14,9 +13,13 @@ import { supabase } from '@/lib/supabase';
 import { Spinner } from '@/components/Spinner';
 import { Button } from '@/components/ui/button';
 import { DatePicker } from '@/components/DatePicker';
-import { DateRange } from '@/components/ui/calendar';
 import { addDays, format, subDays } from 'date-fns';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
+
+interface DateRange {
+  from: Date | undefined;
+  to: Date | undefined;
+}
 
 const Dashboard = () => {
   const [loading, setLoading] = useState(true);
@@ -27,7 +30,6 @@ const Dashboard = () => {
     to: new Date(),
   });
 
-  // Placeholder statistics for the dashboard
   const [stats, setStats] = useState({
     biomassCollected: '0',
     pyrolysisBatches: '0',
@@ -52,10 +54,7 @@ const Dashboard = () => {
     const fetchStats = async () => {
       setLoading(true);
       
-      // These would be real API calls in a production app
       try {
-        // Simulate API calls
-        // In a real app, you'd fetch data from Supabase tables
         setTimeout(() => {
           setStats({
             biomassCollected: '1,250 kg',
