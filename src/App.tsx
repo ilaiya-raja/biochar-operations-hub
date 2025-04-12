@@ -37,12 +37,12 @@ const App = () => (
                 <Route path="/farmers" element={<Farmers />} />
                 {/* Add other routes for master management modules */}
                 <Route path="/biomass" element={<NotFound />} />
-                <Route path="/locations" element={< Locations/>} />
+                <Route path="/locations" element={<Locations/>} />
                 <Route path="/coordinators" element={<Coordinator />} />
-                <Route path="/kilns" element={<Kiln />} />
-                <Route path="/activities" element={<Activities />} />
-                <Route path="/fertilizer" element={<Fertilizer />} />
-                <Route path="/analytics" element={<Analytics />} />
+                <Route path="/kilns" element={<Kiln/>} />
+                <Route path="/activities" element={<Activities/>} />
+                <Route path="/fertilizer" element={<Fertilizer/>} />
+                <Route path="/analytics" element={<Analytics/>} />
               </Route>
             </Route>
             
