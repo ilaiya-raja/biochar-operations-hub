@@ -1,4 +1,3 @@
-
 import { useState, useEffect } from "react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -137,9 +136,9 @@ const PyrolysisProcess = () => {
         const processedData: PyrolysisProcess[] = data.map(item => ({
           id: item.id,
           kiln_id: item.kiln_id,
-          kiln_type: item.kilns?.type || "Unknown",
+          kiln_type: (item.kilns as { type: string })?.type || "Unknown",
           biomass_type_id: item.biomass_type_id,
-          biomass_type_name: item.biomass_types?.name || "Unknown",
+          biomass_type_name: (item.biomass_types as { name: string })?.name || "Unknown",
           start_time: item.start_time,
           end_time: item.end_time,
           input_quantity: item.input_quantity,
