@@ -16,7 +16,7 @@ import Activities from "@/pages/Activities";
 import Fertilizer from "@/pages/Fertilizers";
 import Analytics from "@/pages/Analytics";
 import Locations from "@/pages/Locations";
-
+import NotFound from "@/pages/NotFound";
 
 const queryClient = new QueryClient();
 
