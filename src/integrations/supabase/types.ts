@@ -172,6 +172,57 @@ export type Database = {
           },
         ]
       }
+      farmers: {
+        Row: {
+          address: string | null
+          coordinator_id: string
+          created_at: string
+          email: string | null
+          id: string
+          location_id: string
+          name: string
+          phone: string
+          updated_at: string
+        }
+        Insert: {
+          address?: string | null
+          coordinator_id: string
+          created_at?: string
+          email?: string | null
+          id?: string
+          location_id: string
+          name: string
+          phone: string
+          updated_at?: string
+        }
+        Update: {
+          address?: string | null
+          coordinator_id?: string
+          created_at?: string
+          email?: string | null
+          id?: string
+          location_id?: string
+          name?: string
+          phone?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "farmers_coordinator_id_fkey"
+            columns: ["coordinator_id"]
+            isOneToOne: false
+            referencedRelation: "coordinators"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "farmers_location_id_fkey"
+            columns: ["location_id"]
+            isOneToOne: false
+            referencedRelation: "locations"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       kilns: {
         Row: {
           capacity: number | null

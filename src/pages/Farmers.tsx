@@ -1,41 +1,17 @@
 
-import { useEffect, useState } from 'react';
-import { supabase } from '@/lib/supabase';
-import { Button } from '@/components/ui/button';
+import { useState, useEffect } from 'react';
+import { Plus, Pencil, Trash2, Search, Users } from 'lucide-react';
 import { Input } from '@/components/ui/input';
+import { Button } from '@/components/ui/button';
 import { toast } from 'sonner';
-import { 
-  Table, 
-  TableBody, 
-  TableCell, 
-  TableHead, 
-  TableHeader, 
-  TableRow 
+import {
+  Table,
+  TableBody,
+  TableCell,
+  TableHead,
+  TableHeader,
+  TableRow,
 } from '@/components/ui/table';
-import {
-  Dialog,
-  DialogContent,
-  DialogHeader,
-  DialogTitle,
-  DialogTrigger,
-  DialogFooter,
-  DialogClose,
-} from '@/components/ui/dialog';
-import { 
-  Select, 
-  SelectContent, 
-  SelectItem, 
-  SelectTrigger, 
-  SelectValue 
-} from '@/components/ui/select';
-import {
-  DropdownMenu,
-  DropdownMenuContent,
-  DropdownMenuItem,
-  DropdownMenuLabel,
-  DropdownMenuSeparator,
-  DropdownMenuTrigger,
-} from '@/components/ui/dropdown-menu';
 import {
   Card,
   CardContent,
@@ -43,16 +19,23 @@ import {
   CardHeader,
   CardTitle,
 } from '@/components/ui/card';
-import { Spinner } from '@/components/Spinner';
+import {
+  Dialog,
+  DialogContent,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from '@/components/ui/dialog';
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from '@/components/ui/select';
 import { Label } from '@/components/ui/label';
-import { 
-  Edit, 
-  MoreVertical, 
-  Plus, 
-  Search, 
-  Trash2, 
-  Users 
-} from 'lucide-react';
+import { Spinner } from '@/components/Spinner';
+import { supabase } from '@/lib/supabase';
 
 interface Farmer {
   id: string;
@@ -62,8 +45,10 @@ interface Farmer {
   address?: string;
   location_id: string;
   coordinator_id: string;
-  location_name?: string;
-  coordinator_name?: string;
+  location?: Location;
+  coordinator?: Coordinator;
+  created_at: string;
+  updated_at: string;
 }
 
 interface Location {
@@ -83,10 +68,9 @@ const Farmers = () => {
   const [loading, setLoading] = useState(true);
   const [searchQuery, setSearchQuery] = useState('');
   const [isDialogOpen, setIsDialogOpen] = useState(false);
-  const [editingFarmer, setEditingFarmer] = useState<Farmer | null>(null);
-
-  // Form state
-  const [formData, setFormData] = useState<Omit<Farmer, 'id' | 'location_name' | 'coordinator_name'>>({
+  const [isDeleteDialogOpen, setIsDeleteDialogOpen] = useState(false);
+  const [selectedFarmer, setSelectedFarmer] = useState<Farmer | null>(null);
+  const [formData, setFormData] = useState({
     name: '',
     phone: '',
     email: '',
@@ -94,45 +78,23 @@ const Farmers = () => {
     location_id: '',
     coordinator_id: '',
   });
-
-  useEffect(() => {
-    fetchFarmers();
-    fetchLocations();
-    fetchCoordinators();
-  }, []);
+  const [formErrors, setFormErrors] = useState({
+    name: false,
+    phone: false,
+    location_id: false,
+    coordinator_id: false,
+  });
 
   const fetchFarmers = async () => {
     setLoading(true);
     try {
-      const { data: farmersData, error: farmersError } = await supabase
+      const { data, error } = await supabase
         .from('farmers')
-        .select('*');
-
-      if (farmersError) throw farmersError;
-
-      // Get location names
-      const { data: locationsData } = await supabase
-        .from('locations')
-        .select('id, name');
-
-      // Get coordinator names
-      const { data: coordinatorsData } = await supabase
-        .from('coordinators')
-        .select('id, name');
-
-      // Map location and coordinator names to farmers
-      const formattedData = farmersData.map(farmer => {
-        const location = locationsData?.find(loc => loc.id === farmer.location_id);
-        const coordinator = coordinatorsData?.find(coord => coord.id === farmer.coordinator_id);
-        
-        return {
-          ...farmer,
-          location_name: location?.name,
-          coordinator_name: coordinator?.name
-        };
-      });
-
-      setFarmers(formattedData);
+        .select('*, location:locations(id, name), coordinator:coordinators(id, name)')
+        .order('name');
+      
+      if (error) throw error;
+      setFarmers(data || []);
     } catch (error) {
       console.error('Error fetching farmers:', error);
       toast.error('Failed to load farmers');
@@ -145,8 +107,9 @@ const Farmers = () => {
     try {
       const { data, error } = await supabase
         .from('locations')
-        .select('id, name');
-        
+        .select('id, name')
+        .order('name');
+      
       if (error) throw error;
       setLocations(data || []);
     } catch (error) {
@@ -159,8 +122,9 @@ const Farmers = () => {
     try {
       const { data, error } = await supabase
         .from('coordinators')
-        .select('id, name');
-        
+        .select('id, name')
+        .order('name');
+      
       if (error) throw error;
       setCoordinators(data || []);
     } catch (error) {
@@ -169,13 +133,110 @@ const Farmers = () => {
     }
   };
 
+  useEffect(() => {
+    fetchFarmers();
+    fetchLocations();
+    fetchCoordinators();
+  }, []);
+
   const handleInputChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const { name, value } = e.target;
     setFormData(prev => ({ ...prev, [name]: value }));
+    
+    // Clear error for this field if it exists
+    if (formErrors[name as keyof typeof formErrors]) {
+      setFormErrors(prev => ({ ...prev, [name]: false }));
+    }
   };
 
   const handleSelectChange = (name: string, value: string) => {
     setFormData(prev => ({ ...prev, [name]: value }));
+    
+    // Clear error for this field if it exists
+    if (formErrors[name as keyof typeof formErrors]) {
+      setFormErrors(prev => ({ ...prev, [name]: false }));
+    }
+  };
+
+  const validateForm = () => {
+    const errors = {
+      name: !formData.name,
+      phone: !formData.phone,
+      location_id: !formData.location_id,
+      coordinator_id: !formData.coordinator_id,
+    };
+    
+    setFormErrors(errors);
+    return !Object.values(errors).some(Boolean);
+  };
+
+  const handleSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    
+    if (!validateForm()) {
+      toast.error('Please fill in all required fields');
+      return;
+    }
+
+    try {
+      if (selectedFarmer) {
+        const { error } = await supabase
+          .from('farmers')
+          .update({
+            name: formData.name,
+            phone: formData.phone,
+            email: formData.email || null,
+            address: formData.address || null,
+            location_id: formData.location_id,
+            coordinator_id: formData.coordinator_id,
+            updated_at: new Date().toISOString(),
+          })
+          .eq('id', selectedFarmer.id);
+
+        if (error) throw error;
+        toast.success('Farmer updated successfully');
+      } else {
+        const { error } = await supabase
+          .from('farmers')
+          .insert({
+            name: formData.name,
+            phone: formData.phone,
+            email: formData.email || null,
+            address: formData.address || null,
+            location_id: formData.location_id,
+            coordinator_id: formData.coordinator_id,
+          });
+
+        if (error) throw error;
+        toast.success('Farmer added successfully');
+      }
+
+      setIsDialogOpen(false);
+      resetForm();
+      fetchFarmers();
+    } catch (error) {
+      console.error('Error saving farmer:', error);
+      toast.error('Failed to save farmer');
+    }
+  };
+
+  const handleDelete = async () => {
+    if (!selectedFarmer) return;
+
+    try {
+      const { error } = await supabase
+        .from('farmers')
+        .delete()
+        .eq('id', selectedFarmer.id);
+
+      if (error) throw error;
+      toast.success('Farmer deleted successfully');
+      setIsDeleteDialogOpen(false);
+      fetchFarmers();
+    } catch (error) {
+      console.error('Error deleting farmer:', error);
+      toast.error('Failed to delete farmer');
+    }
   };
 
   const resetForm = () => {
@@ -187,127 +248,75 @@ const Farmers = () => {
       location_id: '',
       coordinator_id: '',
     });
-    setEditingFarmer(null);
+    setFormErrors({
+      name: false,
+      phone: false,
+      location_id: false,
+      coordinator_id: false,
+    });
+    setSelectedFarmer(null);
   };
 
-  const handleOpenDialog = (farmer?: Farmer) => {
-    if (farmer) {
-      setEditingFarmer(farmer);
-      setFormData({
-        name: farmer.name,
-        phone: farmer.phone,
-        email: farmer.email || '',
-        address: farmer.address || '',
-        location_id: farmer.location_id,
-        coordinator_id: farmer.coordinator_id,
-      });
-    } else {
-      resetForm();
-    }
+  const openEditDialog = (farmer: Farmer) => {
+    setSelectedFarmer(farmer);
+    setFormData({
+      name: farmer.name,
+      phone: farmer.phone,
+      email: farmer.email || '',
+      address: farmer.address || '',
+      location_id: farmer.location_id,
+      coordinator_id: farmer.coordinator_id,
+    });
     setIsDialogOpen(true);
   };
 
-  const handleCloseDialog = () => {
-    resetForm();
-    setIsDialogOpen(false);
+  const openDeleteDialog = (farmer: Farmer) => {
+    setSelectedFarmer(farmer);
+    setIsDeleteDialogOpen(true);
   };
 
-  const handleSubmit = async (e: React.FormEvent) => {
-    e.preventDefault();
-    
-    if (!formData.name || !formData.phone || !formData.location_id || !formData.coordinator_id) {
-      toast.error('Please fill in all required fields');
-      return;
-    }
-    
-    try {
-      if (editingFarmer) {
-        // Update existing farmer
-        const { error } = await supabase
-          .from('farmers')
-          .update(formData)
-          .eq('id', editingFarmer.id);
-          
-        if (error) throw error;
-        toast.success('Farmer updated successfully');
-      } else {
-        // Create new farmer
-        const { error } = await supabase
-          .from('farmers')
-          .insert([formData]);
-          
-        if (error) throw error;
-        toast.success('Farmer added successfully');
-      }
-      
-      handleCloseDialog();
-      fetchFarmers();
-    } catch (error) {
-      console.error('Error saving farmer:', error);
-      toast.error('Failed to save farmer');
-    }
-  };
-
-  const handleDelete = async (id: string) => {
-    if (confirm('Are you sure you want to delete this farmer?')) {
-      try {
-        const { error } = await supabase
-          .from('farmers')
-          .delete()
-          .eq('id', id);
-          
-        if (error) throw error;
-        toast.success('Farmer deleted successfully');
-        fetchFarmers();
-      } catch (error) {
-        console.error('Error deleting farmer:', error);
-        toast.error('Failed to delete farmer');
-      }
-    }
-  };
-
-  const filteredFarmers = farmers.filter(farmer => 
-    farmer.name.toLowerCase().includes(searchQuery.toLowerCase()) || 
-    farmer.phone.includes(searchQuery) ||
+  const filteredFarmers = farmers.filter(farmer =>
+    farmer.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
     farmer.id.toLowerCase().includes(searchQuery.toLowerCase()) ||
+    (farmer.phone && farmer.phone.includes(searchQuery)) ||
     (farmer.email && farmer.email.toLowerCase().includes(searchQuery.toLowerCase())) ||
-    (farmer.location_name && farmer.location_name.toLowerCase().includes(searchQuery.toLowerCase())) ||
-    (farmer.coordinator_name && farmer.coordinator_name.toLowerCase().includes(searchQuery.toLowerCase()))
+    (farmer.location?.name && farmer.location.name.toLowerCase().includes(searchQuery.toLowerCase())) ||
+    (farmer.coordinator?.name && farmer.coordinator.name.toLowerCase().includes(searchQuery.toLowerCase()))
   );
 
   return (
     <div className="space-y-6">
-      <div className="flex items-center justify-between">
+      <div className="flex flex-col md:flex-row justify-between md:items-center gap-4">
         <div>
           <h1 className="text-3xl font-bold tracking-tight">Farmer Master</h1>
           <p className="text-muted-foreground">
-            Manage all registered farmers in the system
+            Manage all farmers who are part of the biochar program
           </p>
         </div>
-        <Button onClick={() => handleOpenDialog()}>
-          <Plus className="mr-2 h-4 w-4" />
-          Add Farmer
+        <Button onClick={() => {
+          resetForm();
+          setIsDialogOpen(true);
+        }}>
+          <Plus className="mr-2 h-4 w-4" /> Add Farmer
         </Button>
       </div>
 
+      <div className="flex items-center space-x-2">
+        <Search className="h-4 w-4 text-muted-foreground" />
+        <Input
+          placeholder="Search farmers..."
+          className="max-w-md"
+          value={searchQuery}
+          onChange={(e) => setSearchQuery(e.target.value)}
+        />
+      </div>
+
       <Card>
-        <CardHeader className="pb-3">
+        <CardHeader>
           <CardTitle>Farmers</CardTitle>
           <CardDescription>
-            Total {farmers.length} farmers registered in the system
+            A list of all farmers managed in the system
           </CardDescription>
-          <div className="flex items-center mt-2">
-            <div className="relative flex-1 max-w-lg">
-              <Search className="absolute left-2.5 top-2.5 h-4 w-4 text-muted-foreground" />
-              <Input
-                type="search"
-                placeholder="Search farmers..."
-                className="pl-8"
-                value={searchQuery}
-                onChange={(e) => setSearchQuery(e.target.value)}
-              />
-            </div>
-          </div>
         </CardHeader>
         <CardContent>
           {loading ? (
@@ -315,100 +324,107 @@ const Farmers = () => {
               <Spinner />
             </div>
           ) : (
-            <div className="rounded-md border">
-              <Table>
-                <TableHeader>
+            <Table>
+              <TableHeader>
+                <TableRow>
+                  <TableHead>Farmer ID</TableHead>
+                  <TableHead>Name</TableHead>
+                  <TableHead>Phone</TableHead>
+                  <TableHead>Location</TableHead>
+                  <TableHead>Coordinator</TableHead>
+                  <TableHead className="text-right">Actions</TableHead>
+                </TableRow>
+              </TableHeader>
+              <TableBody>
+                {filteredFarmers.length === 0 ? (
                   <TableRow>
-                    <TableHead>ID</TableHead>
-                    <TableHead>Name</TableHead>
-                    <TableHead>Phone</TableHead>
-                    <TableHead>Email</TableHead>
-                    <TableHead>Location</TableHead>
-                    <TableHead>Coordinator</TableHead>
-                    <TableHead className="w-[60px]">Actions</TableHead>
+                    <TableCell colSpan={6} className="text-center">
+                      No farmers found
+                    </TableCell>
                   </TableRow>
-                </TableHeader>
-                <TableBody>
-                  {filteredFarmers.length > 0 ? (
-                    filteredFarmers.map((farmer) => (
-                      <TableRow key={farmer.id}>
-                        <TableCell className="font-mono text-xs">{farmer.id.slice(0, 8)}</TableCell>
-                        <TableCell className="font-medium">{farmer.name}</TableCell>
-                        <TableCell>{farmer.phone}</TableCell>
-                        <TableCell>{farmer.email || '-'}</TableCell>
-                        <TableCell>{farmer.location_name || '-'}</TableCell>
-                        <TableCell>{farmer.coordinator_name || '-'}</TableCell>
-                        <TableCell>
-                          <DropdownMenu>
-                            <DropdownMenuTrigger asChild>
-                              <Button variant="ghost" size="icon">
-                                <MoreVertical className="h-4 w-4" />
-                              </Button>
-                            </DropdownMenuTrigger>
-                            <DropdownMenuContent align="end">
-                              <DropdownMenuLabel>Actions</DropdownMenuLabel>
-                              <DropdownMenuSeparator />
-                              <DropdownMenuItem onClick={() => handleOpenDialog(farmer)}>
-                                <Edit className="mr-2 h-4 w-4" />
-                                Edit
-                              </DropdownMenuItem>
-                              <DropdownMenuItem onClick={() => handleDelete(farmer.id)}>
-                                <Trash2 className="mr-2 h-4 w-4" />
-                                Delete
-                              </DropdownMenuItem>
-                            </DropdownMenuContent>
-                          </DropdownMenu>
-                        </TableCell>
-                      </TableRow>
-                    ))
-                  ) : (
-                    <TableRow>
-                      <TableCell colSpan={7} className="h-24 text-center">
-                        No farmers found.
+                ) : (
+                  filteredFarmers.map((farmer) => (
+                    <TableRow key={farmer.id}>
+                      <TableCell className="font-mono text-xs">{farmer.id.slice(0, 8)}</TableCell>
+                      <TableCell className="font-medium">
+                        <div className="flex items-center">
+                          <Users className="mr-2 h-4 w-4 text-muted-foreground" />
+                          {farmer.name}
+                        </div>
+                      </TableCell>
+                      <TableCell>{farmer.phone}</TableCell>
+                      <TableCell>{farmer.location?.name || '-'}</TableCell>
+                      <TableCell>{farmer.coordinator?.name || '-'}</TableCell>
+                      <TableCell className="text-right">
+                        <div className="flex justify-end gap-2">
+                          <Button
+                            variant="outline"
+                            size="icon"
+                            onClick={() => openEditDialog(farmer)}
+                          >
+                            <Pencil className="h-4 w-4" />
+                          </Button>
+                          <Button
+                            variant="outline"
+                            size="icon"
+                            onClick={() => openDeleteDialog(farmer)}
+                          >
+                            <Trash2 className="h-4 w-4" />
+                          </Button>
+                        </div>
                       </TableCell>
                     </TableRow>
-                  )}
-                </TableBody>
-              </Table>
-            </div>
+                  ))
+                )}
+              </TableBody>
+            </Table>
           )}
         </CardContent>
       </Card>
 
+      {/* Create/Edit Dialog */}
       <Dialog open={isDialogOpen} onOpenChange={setIsDialogOpen}>
-        <DialogContent className="sm:max-w-[525px]">
+        <DialogContent className="sm:max-w-[500px]">
           <DialogHeader>
             <DialogTitle>
-              {editingFarmer ? 'Edit Farmer' : 'Add New Farmer'}
+              {selectedFarmer ? 'Edit Farmer' : 'Add New Farmer'}
             </DialogTitle>
           </DialogHeader>
           <form onSubmit={handleSubmit}>
             <div className="grid gap-4 py-4">
               <div className="grid grid-cols-4 items-center gap-4">
                 <Label htmlFor="name" className="text-right">
-                  Name <span className="text-red-500">*</span>
+                  Name *
                 </Label>
                 <Input
                   id="name"
                   name="name"
                   value={formData.name}
                   onChange={handleInputChange}
-                  className="col-span-3"
-                  required
+                  className={`col-span-3 ${formErrors.name ? 'border-red-500' : ''}`}
                 />
+                {formErrors.name && (
+                  <div className="col-span-3 col-start-2 text-xs text-red-500">
+                    Name is required
+                  </div>
+                )}
               </div>
               <div className="grid grid-cols-4 items-center gap-4">
                 <Label htmlFor="phone" className="text-right">
-                  Phone <span className="text-red-500">*</span>
+                  Phone *
                 </Label>
                 <Input
                   id="phone"
                   name="phone"
                   value={formData.phone}
                   onChange={handleInputChange}
-                  className="col-span-3"
-                  required
+                  className={`col-span-3 ${formErrors.phone ? 'border-red-500' : ''}`}
                 />
+                {formErrors.phone && (
+                  <div className="col-span-3 col-start-2 text-xs text-red-500">
+                    Phone is required
+                  </div>
+                )}
               </div>
               <div className="grid grid-cols-4 items-center gap-4">
                 <Label htmlFor="email" className="text-right">
@@ -437,14 +453,17 @@ const Farmers = () => {
               </div>
               <div className="grid grid-cols-4 items-center gap-4">
                 <Label htmlFor="location_id" className="text-right">
-                  Location <span className="text-red-500">*</span>
+                  Location *
                 </Label>
-                <Select 
-                  value={formData.location_id} 
+                <Select
+                  value={formData.location_id}
                   onValueChange={(value) => handleSelectChange('location_id', value)}
                 >
-                  <SelectTrigger className="col-span-3">
-                    <SelectValue placeholder="Select a location" />
+                  <SelectTrigger
+                    id="location_id"
+                    className={`col-span-3 ${formErrors.location_id ? 'border-red-500' : ''}`}
+                  >
+                    <SelectValue placeholder="Select location" />
                   </SelectTrigger>
                   <SelectContent>
                     {locations.map((location) => (
@@ -454,17 +473,25 @@ const Farmers = () => {
                     ))}
                   </SelectContent>
                 </Select>
+                {formErrors.location_id && (
+                  <div className="col-span-3 col-start-2 text-xs text-red-500">
+                    Location is required
+                  </div>
+                )}
               </div>
               <div className="grid grid-cols-4 items-center gap-4">
                 <Label htmlFor="coordinator_id" className="text-right">
-                  Coordinator <span className="text-red-500">*</span>
+                  Coordinator *
                 </Label>
-                <Select 
-                  value={formData.coordinator_id} 
+                <Select
+                  value={formData.coordinator_id}
                   onValueChange={(value) => handleSelectChange('coordinator_id', value)}
                 >
-                  <SelectTrigger className="col-span-3">
-                    <SelectValue placeholder="Select a coordinator" />
+                  <SelectTrigger
+                    id="coordinator_id"
+                    className={`col-span-3 ${formErrors.coordinator_id ? 'border-red-500' : ''}`}
+                  >
+                    <SelectValue placeholder="Select coordinator" />
                   </SelectTrigger>
                   <SelectContent>
                     {coordinators.map((coordinator) => (
@@ -474,19 +501,40 @@ const Farmers = () => {
                     ))}
                   </SelectContent>
                 </Select>
+                {formErrors.coordinator_id && (
+                  <div className="col-span-3 col-start-2 text-xs text-red-500">
+                    Coordinator is required
+                  </div>
+                )}
               </div>
             </div>
             <DialogFooter>
-              <DialogClose asChild>
-                <Button type="button" variant="outline">
-                  Cancel
-                </Button>
-              </DialogClose>
+              <Button type="button" variant="outline" onClick={() => setIsDialogOpen(false)}>
+                Cancel
+              </Button>
               <Button type="submit">
-                {editingFarmer ? 'Update' : 'Add'} Farmer
+                {selectedFarmer ? 'Update' : 'Add'} Farmer
               </Button>
             </DialogFooter>
           </form>
+        </DialogContent>
+      </Dialog>
+
+      {/* Delete Confirmation Dialog */}
+      <Dialog open={isDeleteDialogOpen} onOpenChange={setIsDeleteDialogOpen}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Confirm Deletion</DialogTitle>
+          </DialogHeader>
+          <p>Are you sure you want to delete this farmer? This action cannot be undone.</p>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setIsDeleteDialogOpen(false)}>
+              Cancel
+            </Button>
+            <Button variant="destructive" onClick={handleDelete}>
+              Delete
+            </Button>
+          </DialogFooter>
         </DialogContent>
       </Dialog>
     </div>
