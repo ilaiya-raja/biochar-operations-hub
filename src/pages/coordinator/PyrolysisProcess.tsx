@@ -1,4 +1,3 @@
-
 import { useState, useEffect } from "react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -134,19 +133,25 @@ const PyrolysisProcess = () => {
       if (error) throw error;
 
       if (data) {
-        const processedData: PyrolysisProcess[] = data.map(item => ({
-          id: item.id,
-          kiln_id: item.kiln_id,
-          kiln_type: (item.kilns as { type: string }).type || "Unknown",
-          biomass_type_id: item.biomass_type_id,
-          biomass_type_name: (item.biomass_types as { name: string }).name || "Unknown",
-          start_time: item.start_time,
-          end_time: item.end_time,
-          input_quantity: item.input_quantity,
-          output_quantity: item.output_quantity,
-          status: item.status,
-          photo_url: item.photo_url
-        }));
+        const processedData: PyrolysisProcess[] = data.map(item => {
+          // Extract the first item from arrays or use default values
+          const kilnData = Array.isArray(item.kilns) ? item.kilns[0] : item.kilns;
+          const biomassTypeData = Array.isArray(item.biomass_types) ? item.biomass_types[0] : item.biomass_types;
+          
+          return {
+            id: item.id,
+            kiln_id: item.kiln_id,
+            kiln_type: kilnData?.type || "Unknown",
+            biomass_type_id: item.biomass_type_id,
+            biomass_type_name: biomassTypeData?.name || "Unknown",
+            start_time: item.start_time,
+            end_time: item.end_time,
+            input_quantity: item.input_quantity,
+            output_quantity: item.output_quantity,
+            status: item.status,
+            photo_url: item.photo_url
+          };
+        });
 
         setProcesses(processedData);
         
