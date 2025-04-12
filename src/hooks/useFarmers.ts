@@ -2,7 +2,7 @@
 import { useState, useEffect } from "react";
 import { supabase } from "@/lib/supabase";
 import { useToast } from "@/hooks/use-toast";
-import { Farmer } from "@/types/fertilizer";
+import { Farmer } from "@/types/biomass";
 
 export const useFarmers = (coordinatorId: string | undefined) => {
   const [farmers, setFarmers] = useState<Farmer[]>([]);
