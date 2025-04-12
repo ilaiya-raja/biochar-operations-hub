@@ -1,9 +1,9 @@
 
 import { useState, useEffect } from 'react';
-import { useQueryClient } from '@tanstack/react-query';
-import { Plus, Pencil, Trash2, Search } from 'lucide-react';
+import { Plus, Pencil, Trash2, Search, MapPin } from 'lucide-react';
 import { Input } from '@/components/ui/input';
 import { Button } from '@/components/ui/button';
+import { toast } from 'sonner';
 import {
   Table,
   TableBody,
@@ -22,99 +22,114 @@ import {
 import {
   Dialog,
   DialogContent,
-  DialogDescription,
   DialogFooter,
   DialogHeader,
   DialogTitle,
-  DialogTrigger,
 } from '@/components/ui/dialog';
-import {
-  Form,
-  FormControl,
-  FormField,
-  FormItem,
-  FormLabel,
-  FormMessage,
-} from '@/components/ui/form';
+import { Label } from '@/components/ui/label';
 import { Spinner } from '@/components/Spinner';
-import { useForm } from 'react-hook-form';
-import { zodResolver } from '@hookform/resolvers/zod';
-import * as z from 'zod';
-import { Location, locationService } from '@/services/supabase-service';
+import { locationService } from '@/services/supabase-service';
 
-const formSchema = z.object({
-  name: z.string().min(2, { message: 'Name must be at least 2 characters.' }),
-  address: z.string().optional(),
-  district: z.string().optional(),
-  state: z.string().optional(),
-  country: z.string().optional(),
-});
-
-type FormValues = z.infer<typeof formSchema>;
+interface Location {
+  id: string;
+  name: string;
+  address?: string;
+  district?: string;
+  state?: string;
+  country?: string;
+  created_at: string;
+  updated_at: string;
+}
 
 const Locations = () => {
   const [locations, setLocations] = useState<Location[]>([]);
   const [loading, setLoading] = useState(true);
   const [searchQuery, setSearchQuery] = useState('');
-  const [selectedLocation, setSelectedLocation] = useState<Location | null>(null);
+  const [isDialogOpen, setIsDialogOpen] = useState(false);
   const [isDeleteDialogOpen, setIsDeleteDialogOpen] = useState(false);
-  const [isFormDialogOpen, setIsFormDialogOpen] = useState(false);
-  const queryClient = useQueryClient();
-
-  const form = useForm<FormValues>({
-    resolver: zodResolver(formSchema),
-    defaultValues: {
-      name: '',
-      address: '',
-      district: '',
-      state: '',
-      country: '',
-    },
+  const [selectedLocation, setSelectedLocation] = useState<Location | null>(null);
+  const [formData, setFormData] = useState({
+    name: '',
+    address: '',
+    district: '',
+    state: '',
+    country: '',
   });
 
   const fetchLocations = async () => {
     setLoading(true);
-    const data = await locationService.getLocations();
-    setLocations(data || []);
-    setLoading(false);
+    try {
+      const data = await locationService.getLocations();
+      setLocations(data || []);
+    } catch (error) {
+      console.error('Error fetching locations:', error);
+      toast.error('Failed to load locations');
+    } finally {
+      setLoading(false);
+    }
   };
 
   useEffect(() => {
     fetchLocations();
   }, []);
 
-  const handleCreateOrUpdate = async (values: FormValues) => {
-    if (selectedLocation) {
-      await locationService.updateLocation(selectedLocation.id, values);
-    } else {
-      await locationService.createLocation(values);
+  const handleInputChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const { name, value } = e.target;
+    setFormData(prev => ({ ...prev, [name]: value }));
+  };
+
+  const handleSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    try {
+      if (selectedLocation) {
+        await locationService.updateLocation(selectedLocation.id, formData);
+      } else {
+        await locationService.createLocation(formData);
+      }
+
+      setIsDialogOpen(false);
+      resetForm();
+      fetchLocations();
+    } catch (error) {
+      console.error('Error saving location:', error);
+      toast.error('Failed to save location');
     }
-    
-    fetchLocations();
-    setIsFormDialogOpen(false);
-    form.reset();
-    setSelectedLocation(null);
   };
 
   const handleDelete = async () => {
     if (!selectedLocation) return;
-    
-    await locationService.deleteLocation(selectedLocation.id);
-    fetchLocations();
-    setIsDeleteDialogOpen(false);
+
+    try {
+      await locationService.deleteLocation(selectedLocation.id);
+      setIsDeleteDialogOpen(false);
+      fetchLocations();
+    } catch (error) {
+      console.error('Error deleting location:', error);
+      toast.error('Failed to delete location');
+    }
+  };
+
+  const resetForm = () => {
+    setFormData({
+      name: '',
+      address: '',
+      district: '',
+      state: '',
+      country: '',
+    });
     setSelectedLocation(null);
   };
 
   const openEditDialog = (location: Location) => {
     setSelectedLocation(location);
-    form.reset({
+    setFormData({
       name: location.name,
       address: location.address || '',
       district: location.district || '',
       state: location.state || '',
       country: location.country || '',
     });
-    setIsFormDialogOpen(true);
+    setIsDialogOpen(true);
   };
 
   const openDeleteDialog = (location: Location) => {
@@ -122,21 +137,9 @@ const Locations = () => {
     setIsDeleteDialogOpen(true);
   };
 
-  const openCreateDialog = () => {
-    setSelectedLocation(null);
-    form.reset({
-      name: '',
-      address: '',
-      district: '',
-      state: '',
-      country: '',
-    });
-    setIsFormDialogOpen(true);
-  };
-
-  const filteredLocations = locations.filter(location => 
+  const filteredLocations = locations.filter(location =>
     location.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
-    (location.address && location.address.toLowerCase().includes(searchQuery.toLowerCase())) ||
+    location.id.toLowerCase().includes(searchQuery.toLowerCase()) ||
     (location.district && location.district.toLowerCase().includes(searchQuery.toLowerCase())) ||
     (location.state && location.state.toLowerCase().includes(searchQuery.toLowerCase())) ||
     (location.country && location.country.toLowerCase().includes(searchQuery.toLowerCase()))
@@ -144,23 +147,26 @@ const Locations = () => {
 
   return (
     <div className="space-y-6">
-      <div className="flex flex-col justify-between gap-4 md:flex-row">
+      <div className="flex flex-col md:flex-row justify-between md:items-center gap-4">
         <div>
           <h1 className="text-3xl font-bold tracking-tight">Location Master</h1>
           <p className="text-muted-foreground">
-            Manage locations for the biochar operations.
+            Manage all locations where biochar operations are conducted
           </p>
         </div>
-        <Button onClick={openCreateDialog}>
+        <Button onClick={() => {
+          resetForm();
+          setIsDialogOpen(true);
+        }}>
           <Plus className="mr-2 h-4 w-4" /> Add Location
         </Button>
       </div>
 
       <div className="flex items-center space-x-2">
-        <Search className="h-5 w-5 text-muted-foreground" />
+        <Search className="h-4 w-4 text-muted-foreground" />
         <Input
           placeholder="Search locations..."
-          className="max-w-sm"
+          className="max-w-md"
           value={searchQuery}
           onChange={(e) => setSearchQuery(e.target.value)}
         />
@@ -170,7 +176,7 @@ const Locations = () => {
         <CardHeader>
           <CardTitle>Locations</CardTitle>
           <CardDescription>
-            A list of all biochar operation locations.
+            A list of all locations managed in the system
           </CardDescription>
         </CardHeader>
         <CardContent>
@@ -182,8 +188,8 @@ const Locations = () => {
             <Table>
               <TableHeader>
                 <TableRow>
+                  <TableHead>ID</TableHead>
                   <TableHead>Name</TableHead>
-                  <TableHead>Address</TableHead>
                   <TableHead>District</TableHead>
                   <TableHead>State</TableHead>
                   <TableHead>Country</TableHead>
@@ -194,14 +200,19 @@ const Locations = () => {
                 {filteredLocations.length === 0 ? (
                   <TableRow>
                     <TableCell colSpan={6} className="text-center">
-                      No locations found.
+                      No locations found
                     </TableCell>
                   </TableRow>
                 ) : (
                   filteredLocations.map((location) => (
                     <TableRow key={location.id}>
-                      <TableCell>{location.name}</TableCell>
-                      <TableCell>{location.address || '-'}</TableCell>
+                      <TableCell className="font-mono text-xs">{location.id.slice(0, 8)}</TableCell>
+                      <TableCell className="font-medium">
+                        <div className="flex items-center">
+                          <MapPin className="mr-2 h-4 w-4 text-muted-foreground" />
+                          {location.name}
+                        </div>
+                      </TableCell>
                       <TableCell>{location.district || '-'}</TableCell>
                       <TableCell>{location.state || '-'}</TableCell>
                       <TableCell>{location.country || '-'}</TableCell>
@@ -232,100 +243,87 @@ const Locations = () => {
         </CardContent>
       </Card>
 
-      {/* Create/Edit Location Dialog */}
-      <Dialog open={isFormDialogOpen} onOpenChange={setIsFormDialogOpen}>
-        <DialogContent>
+      {/* Create/Edit Dialog */}
+      <Dialog open={isDialogOpen} onOpenChange={setIsDialogOpen}>
+        <DialogContent className="sm:max-w-[500px]">
           <DialogHeader>
             <DialogTitle>
-              {selectedLocation ? 'Edit Location' : 'Add Location'}
+              {selectedLocation ? 'Edit Location' : 'Add New Location'}
             </DialogTitle>
-            <DialogDescription>
-              {selectedLocation 
-                ? 'Update the location details below.' 
-                : 'Fill in the location details below.'}
-            </DialogDescription>
           </DialogHeader>
-          <Form {...form}>
-            <form onSubmit={form.handleSubmit(handleCreateOrUpdate)} className="space-y-4">
-              <FormField
-                control={form.control}
-                name="name"
-                render={({ field }) => (
-                  <FormItem>
-                    <FormLabel>Name*</FormLabel>
-                    <FormControl>
-                      <Input placeholder="Enter location name" {...field} />
-                    </FormControl>
-                    <FormMessage />
-                  </FormItem>
-                )}
-              />
-              <FormField
-                control={form.control}
-                name="address"
-                render={({ field }) => (
-                  <FormItem>
-                    <FormLabel>Address</FormLabel>
-                    <FormControl>
-                      <Input placeholder="Enter address" {...field} />
-                    </FormControl>
-                    <FormMessage />
-                  </FormItem>
-                )}
-              />
-              <FormField
-                control={form.control}
-                name="district"
-                render={({ field }) => (
-                  <FormItem>
-                    <FormLabel>District</FormLabel>
-                    <FormControl>
-                      <Input placeholder="Enter district" {...field} />
-                    </FormControl>
-                    <FormMessage />
-                  </FormItem>
-                )}
-              />
-              <FormField
-                control={form.control}
-                name="state"
-                render={({ field }) => (
-                  <FormItem>
-                    <FormLabel>State</FormLabel>
-                    <FormControl>
-                      <Input placeholder="Enter state" {...field} />
-                    </FormControl>
-                    <FormMessage />
-                  </FormItem>
-                )}
-              />
-              <FormField
-                control={form.control}
-                name="country"
-                render={({ field }) => (
-                  <FormItem>
-                    <FormLabel>Country</FormLabel>
-                    <FormControl>
-                      <Input placeholder="Enter country" {...field} />
-                    </FormControl>
-                    <FormMessage />
-                  </FormItem>
-                )}
-              />
-              <DialogFooter>
-                <Button 
-                  type="button" 
-                  variant="outline" 
-                  onClick={() => setIsFormDialogOpen(false)}
-                >
-                  Cancel
-                </Button>
-                <Button type="submit">
-                  {selectedLocation ? 'Update' : 'Create'}
-                </Button>
-              </DialogFooter>
-            </form>
-          </Form>
+          <form onSubmit={handleSubmit}>
+            <div className="grid gap-4 py-4">
+              <div className="grid grid-cols-4 items-center gap-4">
+                <Label htmlFor="name" className="text-right">
+                  Name
+                </Label>
+                <Input
+                  id="name"
+                  name="name"
+                  value={formData.name}
+                  onChange={handleInputChange}
+                  className="col-span-3"
+                  required
+                />
+              </div>
+              <div className="grid grid-cols-4 items-center gap-4">
+                <Label htmlFor="address" className="text-right">
+                  Address
+                </Label>
+                <Input
+                  id="address"
+                  name="address"
+                  value={formData.address}
+                  onChange={handleInputChange}
+                  className="col-span-3"
+                />
+              </div>
+              <div className="grid grid-cols-4 items-center gap-4">
+                <Label htmlFor="district" className="text-right">
+                  District
+                </Label>
+                <Input
+                  id="district"
+                  name="district"
+                  value={formData.district}
+                  onChange={handleInputChange}
+                  className="col-span-3"
+                />
+              </div>
+              <div className="grid grid-cols-4 items-center gap-4">
+                <Label htmlFor="state" className="text-right">
+                  State
+                </Label>
+                <Input
+                  id="state"
+                  name="state"
+                  value={formData.state}
+                  onChange={handleInputChange}
+                  className="col-span-3"
+                />
+              </div>
+              <div className="grid grid-cols-4 items-center gap-4">
+                <Label htmlFor="country" className="text-right">
+                  Country
+                </Label>
+                <Input
+                  id="country"
+                  name="country"
+                  value={formData.country}
+                  onChange={handleInputChange}
+                  className="col-span-3"
+                />
+              </div>
+            </div>
+            <DialogFooter>
+              <Button type="button" variant="outline" onClick={() => setIsDialogOpen(false)}>
+                Cancel
+              </Button>
+              <Button type="submit">
+                {selectedLocation ? 'Update' : 'Add'} Location
+              </Button>
+            </DialogFooter>
+          </form>
         </DialogContent>
       </Dialog>
 
@@ -334,22 +332,13 @@ const Locations = () => {
         <DialogContent>
           <DialogHeader>
             <DialogTitle>Confirm Deletion</DialogTitle>
-            <DialogDescription>
-              Are you sure you want to delete the location "{selectedLocation?.name}"? 
-              This action cannot be undone.
-            </DialogDescription>
           </DialogHeader>
+          <p>Are you sure you want to delete this location? This action cannot be undone.</p>
           <DialogFooter>
-            <Button 
-              variant="outline" 
-              onClick={() => setIsDeleteDialogOpen(false)}
-            >
+            <Button variant="outline" onClick={() => setIsDeleteDialogOpen(false)}>
               Cancel
             </Button>
-            <Button 
-              variant="destructive" 
-              onClick={handleDelete}
-            >
+            <Button variant="destructive" onClick={handleDelete}>
               Delete
             </Button>
           </DialogFooter>

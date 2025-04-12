@@ -12,9 +12,7 @@ import Dashboard from "@/pages/Dashboard";
 import Farmers from "@/pages/Farmers";
 import Coordinator from "@/pages/Coordinators";
 import Kiln from "@/pages/Kilns";
-import Activities from "@/pages/Activities";
 import Fertilizer from "@/pages/Fertilizers";
-import Analytics from "@/pages/Analytics";
 import Locations from "@/pages/Locations";
 import NotFound from "@/pages/NotFound";
 
@@ -35,14 +33,12 @@ const App = () => (
               <Route element={<DashboardLayout />}>
                 <Route path="/dashboard" element={<Dashboard />} />
                 <Route path="/farmers" element={<Farmers />} />
-                {/* Add other routes for master management modules */}
+                {/* Master management modules */}
                 <Route path="/biomass" element={<NotFound />} />
                 <Route path="/locations" element={<Locations/>} />
                 <Route path="/coordinators" element={<Coordinator />} />
                 <Route path="/kilns" element={<Kiln/>} />
-                <Route path="/activities" element={<Activities/>} />
                 <Route path="/fertilizer" element={<Fertilizer/>} />
-                <Route path="/analytics" element={<Analytics/>} />
               </Route>
             </Route>
             

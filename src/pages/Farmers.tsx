@@ -104,28 +104,33 @@ const Farmers = () => {
   const fetchFarmers = async () => {
     setLoading(true);
     try {
-      const { data, error } = await supabase
+      const { data: farmersData, error: farmersError } = await supabase
         .from('farmers')
-        .select(`
-          *,
-          locations(name),
-          coordinators(name)
-        `);
+        .select('*');
 
-      if (error) throw error;
+      if (farmersError) throw farmersError;
 
-      // Format the data to match our Farmer interface
-      const formattedData = data?.map(farmer => ({
-        id: farmer.id,
-        name: farmer.name,
-        phone: farmer.phone,
-        email: farmer.email,
-        address: farmer.address,
-        location_id: farmer.location_id,
-        coordinator_id: farmer.coordinator_id,
-        location_name: farmer.locations?.name,
-        coordinator_name: farmer.coordinators?.name
-      })) || [];
+      // Get location names
+      const { data: locationsData } = await supabase
+        .from('locations')
+        .select('id, name');
+
+      // Get coordinator names
+      const { data: coordinatorsData } = await supabase
+        .from('coordinators')
+        .select('id, name');
+
+      // Map location and coordinator names to farmers
+      const formattedData = farmersData.map(farmer => {
+        const location = locationsData?.find(loc => loc.id === farmer.location_id);
+        const coordinator = coordinatorsData?.find(coord => coord.id === farmer.coordinator_id);
+        
+        return {
+          ...farmer,
+          location_name: location?.name,
+          coordinator_name: coordinator?.name
+        };
+      });
 
       setFarmers(formattedData);
     } catch (error) {
@@ -229,7 +234,7 @@ const Farmers = () => {
         // Create new farmer
         const { error } = await supabase
           .from('farmers')
-          .insert(formData);
+          .insert([formData]);
           
         if (error) throw error;
         toast.success('Farmer added successfully');
@@ -264,6 +269,7 @@ const Farmers = () => {
   const filteredFarmers = farmers.filter(farmer => 
     farmer.name.toLowerCase().includes(searchQuery.toLowerCase()) || 
     farmer.phone.includes(searchQuery) ||
+    farmer.id.toLowerCase().includes(searchQuery.toLowerCase()) ||
     (farmer.email && farmer.email.toLowerCase().includes(searchQuery.toLowerCase())) ||
     (farmer.location_name && farmer.location_name.toLowerCase().includes(searchQuery.toLowerCase())) ||
     (farmer.coordinator_name && farmer.coordinator_name.toLowerCase().includes(searchQuery.toLowerCase()))
@@ -313,6 +319,7 @@ const Farmers = () => {
               <Table>
                 <TableHeader>
                   <TableRow>
+                    <TableHead>ID</TableHead>
                     <TableHead>Name</TableHead>
                     <TableHead>Phone</TableHead>
                     <TableHead>Email</TableHead>
@@ -325,11 +332,12 @@ const Farmers = () => {
                   {filteredFarmers.length > 0 ? (
                     filteredFarmers.map((farmer) => (
                       <TableRow key={farmer.id}>
+                        <TableCell className="font-mono text-xs">{farmer.id.slice(0, 8)}</TableCell>
                         <TableCell className="font-medium">{farmer.name}</TableCell>
                         <TableCell>{farmer.phone}</TableCell>
                         <TableCell>{farmer.email || '-'}</TableCell>
-                        <TableCell>{farmer.location_name}</TableCell>
-                        <TableCell>{farmer.coordinator_name}</TableCell>
+                        <TableCell>{farmer.location_name || '-'}</TableCell>
+                        <TableCell>{farmer.coordinator_name || '-'}</TableCell>
                         <TableCell>
                           <DropdownMenu>
                             <DropdownMenuTrigger asChild>
@@ -355,7 +363,7 @@ const Farmers = () => {
                     ))
                   ) : (
                     <TableRow>
-                      <TableCell colSpan={6} className="h-24 text-center">
+                      <TableCell colSpan={7} className="h-24 text-center">
                         No farmers found.
                       </TableCell>
                     </TableRow>

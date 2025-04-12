@@ -1,8 +1,9 @@
 
 import { useState, useEffect } from 'react';
-import { Plus, Pencil, Trash2, Search, FlameIcon } from 'lucide-react';
+import { Plus, Pencil, Trash2, Search, Flame } from 'lucide-react';
 import { Input } from '@/components/ui/input';
 import { Button } from '@/components/ui/button';
+import { toast } from 'sonner';
 import {
   Table,
   TableBody,
@@ -21,19 +22,10 @@ import {
 import {
   Dialog,
   DialogContent,
-  DialogDescription,
   DialogFooter,
   DialogHeader,
   DialogTitle,
 } from '@/components/ui/dialog';
-import {
-  Form,
-  FormControl,
-  FormField,
-  FormItem,
-  FormLabel,
-  FormMessage,
-} from '@/components/ui/form';
 import {
   Select,
   SelectContent,
@@ -41,30 +33,16 @@ import {
   SelectTrigger,
   SelectValue,
 } from '@/components/ui/select';
+import { Label } from '@/components/ui/label';
 import { Spinner } from '@/components/Spinner';
-import { useForm } from 'react-hook-form';
-import { zodResolver } from '@hookform/resolvers/zod';
-import * as z from 'zod';
-import { 
-  Kiln, 
-  Location, 
-  Coordinator,
+import {
   kilnService,
-  locationService,
-  coordinatorService
+  locationService, 
+  coordinatorService,
+  Kiln,
+  Location,
+  Coordinator
 } from '@/services/supabase-service';
-
-const formSchema = z.object({
-  name: z.string().min(2, { message: 'Name must be at least 2 characters.' }),
-  type: z.string().optional(),
-  capacity: z.coerce.number().min(0).optional(),
-  capacity_unit: z.string().optional(),
-  location_id: z.string().optional(),
-  coordinator_id: z.string().optional(),
-  status: z.string().default('active'),
-});
-
-type FormValues = z.infer<typeof formSchema>;
 
 const Kilns = () => {
   const [kilns, setKilns] = useState<Kiln[]>([]);
@@ -72,75 +50,121 @@ const Kilns = () => {
   const [coordinators, setCoordinators] = useState<Coordinator[]>([]);
   const [loading, setLoading] = useState(true);
   const [searchQuery, setSearchQuery] = useState('');
-  const [selectedKiln, setSelectedKiln] = useState<Kiln | null>(null);
+  const [isDialogOpen, setIsDialogOpen] = useState(false);
   const [isDeleteDialogOpen, setIsDeleteDialogOpen] = useState(false);
-  const [isFormDialogOpen, setIsFormDialogOpen] = useState(false);
-
-  const form = useForm<FormValues>({
-    resolver: zodResolver(formSchema),
-    defaultValues: {
-      name: '',
-      type: '',
-      capacity: undefined,
-      capacity_unit: '',
-      location_id: undefined,
-      coordinator_id: undefined,
-      status: 'active',
-    },
+  const [selectedKiln, setSelectedKiln] = useState<Kiln | null>(null);
+  const [formData, setFormData] = useState<{
+    type: string;
+    capacity: string;
+    capacity_unit: string;
+    location_id: string;
+    coordinator_id: string;
+    status: string;
+  }>({
+    type: '',
+    capacity: '',
+    capacity_unit: 'kg',
+    location_id: '',
+    coordinator_id: '',
+    status: 'active',
   });
 
   const fetchData = async () => {
     setLoading(true);
-    const [kilnsData, locationsData, coordinatorsData] = await Promise.all([
-      kilnService.getKilns(),
-      locationService.getLocations(),
-      coordinatorService.getCoordinators()
-    ]);
-    
-    setKilns(kilnsData || []);
-    setLocations(locationsData || []);
-    setCoordinators(coordinatorsData || []);
-    setLoading(false);
+    try {
+      const [kilnsData, locationsData, coordinatorsData] = await Promise.all([
+        kilnService.getKilns(),
+        locationService.getLocations(),
+        coordinatorService.getCoordinators()
+      ]);
+      
+      setKilns(kilnsData || []);
+      setLocations(locationsData || []);
+      setCoordinators(coordinatorsData || []);
+    } catch (error) {
+      console.error('Error fetching data:', error);
+      toast.error('Failed to load data');
+    } finally {
+      setLoading(false);
+    }
   };
 
   useEffect(() => {
     fetchData();
   }, []);
 
-  const handleCreateOrUpdate = async (values: FormValues) => {
-    if (selectedKiln) {
-      await kilnService.updateKiln(selectedKiln.id, values);
-    } else {
-      await kilnService.createKiln(values);
-    }
+  const handleInputChange = (e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement>) => {
+    const { name, value } = e.target;
+    setFormData(prev => ({ ...prev, [name]: value }));
+  };
+
+  const handleSelectChange = (name: string, value: string) => {
+    setFormData(prev => ({ ...prev, [name]: value }));
+  };
+
+  const handleSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
     
-    fetchData();
-    setIsFormDialogOpen(false);
-    form.reset();
-    setSelectedKiln(null);
+    try {
+      const kilnData = {
+        ...formData,
+        capacity: formData.capacity ? parseFloat(formData.capacity) : null,
+      };
+
+      if (selectedKiln) {
+        await kilnService.updateKiln(selectedKiln.id, kilnData);
+        toast.success('Kiln updated successfully');
+      } else {
+        await kilnService.createKiln(kilnData);
+        toast.success('Kiln added successfully');
+      }
+      
+      setIsDialogOpen(false);
+      resetForm();
+      fetchData();
+    } catch (error) {
+      console.error('Error saving kiln:', error);
+      toast.error('Failed to save kiln');
+    }
   };
 
   const handleDelete = async () => {
     if (!selectedKiln) return;
     
-    await kilnService.deleteKiln(selectedKiln.id);
-    fetchData();
-    setIsDeleteDialogOpen(false);
+    try {
+      await kilnService.deleteKiln(selectedKiln.id);
+      toast.success('Kiln deleted successfully');
+      setIsDeleteDialogOpen(false);
+      fetchData();
+    } catch (error) {
+      console.error('Error deleting kiln:', error);
+      toast.error('Failed to delete kiln');
+    }
+  };
+
+  const resetForm = () => {
+    setFormData({
+      type: '',
+      capacity: '',
+      capacity_unit: 'kg',
+      location_id: '',
+      coordinator_id: '',
+      status: 'active',
+    });
     setSelectedKiln(null);
   };
 
   const openEditDialog = (kiln: Kiln) => {
     setSelectedKiln(kiln);
-    form.reset({
-      name: kiln.name,
+    setFormData({
       type: kiln.type || '',
-      capacity: kiln.capacity,
-      capacity_unit: kiln.capacity_unit || '',
-      location_id: kiln.location_id || undefined,
-      coordinator_id: kiln.coordinator_id || undefined,
+      capacity: kiln.capacity ? kiln.capacity.toString() : '',
+      capacity_unit: kiln.capacity_unit || 'kg',
+      location_id: kiln.location_id || '',
+      coordinator_id: kiln.coordinator_id || '',
       status: kiln.status,
     });
-    setIsFormDialogOpen(true);
+    setIsDialogOpen(true);
   };
 
   const openDeleteDialog = (kiln: Kiln) => {
@@ -148,46 +172,35 @@ const Kilns = () => {
     setIsDeleteDialogOpen(true);
   };
 
-  const openCreateDialog = () => {
-    setSelectedKiln(null);
-    form.reset({
-      name: '',
-      type: '',
-      capacity: undefined,
-      capacity_unit: '',
-      location_id: undefined,
-      coordinator_id: undefined,
-      status: 'active',
-    });
-    setIsFormDialogOpen(true);
-  };
-
-  const filteredKilns = kilns.filter(kiln => 
-    kiln.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
+  const filteredKilns = kilns.filter(kiln =>
     (kiln.type && kiln.type.toLowerCase().includes(searchQuery.toLowerCase())) ||
+    kiln.id.toLowerCase().includes(searchQuery.toLowerCase()) ||
     (kiln.location?.name && kiln.location.name.toLowerCase().includes(searchQuery.toLowerCase())) ||
     (kiln.coordinator?.name && kiln.coordinator.name.toLowerCase().includes(searchQuery.toLowerCase()))
   );
 
   return (
     <div className="space-y-6">
-      <div className="flex flex-col justify-between gap-4 md:flex-row">
+      <div className="flex flex-col md:flex-row justify-between md:items-center gap-4">
         <div>
           <h1 className="text-3xl font-bold tracking-tight">Kiln Master</h1>
           <p className="text-muted-foreground">
-            Manage biochar pyrolysis kilns.
+            Manage all kilns used in biochar production
           </p>
         </div>
-        <Button onClick={openCreateDialog}>
+        <Button onClick={() => {
+          resetForm();
+          setIsDialogOpen(true);
+        }}>
           <Plus className="mr-2 h-4 w-4" /> Add Kiln
         </Button>
       </div>
 
       <div className="flex items-center space-x-2">
-        <Search className="h-5 w-5 text-muted-foreground" />
+        <Search className="h-4 w-4 text-muted-foreground" />
         <Input
           placeholder="Search kilns..."
-          className="max-w-sm"
+          className="max-w-md"
           value={searchQuery}
           onChange={(e) => setSearchQuery(e.target.value)}
         />
@@ -197,7 +210,7 @@ const Kilns = () => {
         <CardHeader>
           <CardTitle>Kilns</CardTitle>
           <CardDescription>
-            A list of all pyrolysis kilns.
+            A list of all kilns registered in the system
           </CardDescription>
         </CardHeader>
         <CardContent>
@@ -209,7 +222,7 @@ const Kilns = () => {
             <Table>
               <TableHeader>
                 <TableRow>
-                  <TableHead>Name</TableHead>
+                  <TableHead>ID</TableHead>
                   <TableHead>Type</TableHead>
                   <TableHead>Capacity</TableHead>
                   <TableHead>Location</TableHead>
@@ -222,30 +235,24 @@ const Kilns = () => {
                 {filteredKilns.length === 0 ? (
                   <TableRow>
                     <TableCell colSpan={7} className="text-center">
-                      No kilns found.
+                      No kilns found
                     </TableCell>
                   </TableRow>
                 ) : (
                   filteredKilns.map((kiln) => (
                     <TableRow key={kiln.id}>
-                      <TableCell>
+                      <TableCell className="font-mono text-xs">{kiln.id.slice(0, 8)}</TableCell>
+                      <TableCell className="font-medium">
                         <div className="flex items-center">
-                          <FlameIcon className="mr-2 h-4 w-4 text-amber-500" />
-                          {kiln.name}
+                          <Flame className="mr-2 h-4 w-4 text-orange-500" />
+                          {kiln.type || '-'}
                         </div>
                       </TableCell>
-                      <TableCell>{kiln.type || '-'}</TableCell>
                       <TableCell>
-                        {kiln.capacity 
-                          ? `${kiln.capacity} ${kiln.capacity_unit || ''}` 
-                          : '-'}
+                        {kiln.capacity ? `${kiln.capacity} ${kiln.capacity_unit || 'units'}` : '-'}
                       </TableCell>
-                      <TableCell>
-                        {kiln.location ? kiln.location.name : '-'}
-                      </TableCell>
-                      <TableCell>
-                        {kiln.coordinator ? kiln.coordinator.name : '-'}
-                      </TableCell>
+                      <TableCell>{kiln.location?.name || '-'}</TableCell>
+                      <TableCell>{kiln.coordinator?.name || '-'}</TableCell>
                       <TableCell>
                         <span className={`px-2 py-1 rounded-full text-xs font-medium ${
                           kiln.status === 'active' 
@@ -282,185 +289,126 @@ const Kilns = () => {
         </CardContent>
       </Card>
 
-      {/* Create/Edit Kiln Dialog */}
-      <Dialog open={isFormDialogOpen} onOpenChange={setIsFormDialogOpen}>
-        <DialogContent>
+      {/* Create/Edit Dialog */}
+      <Dialog open={isDialogOpen} onOpenChange={setIsDialogOpen}>
+        <DialogContent className="sm:max-w-[500px]">
           <DialogHeader>
             <DialogTitle>
-              {selectedKiln ? 'Edit Kiln' : 'Add Kiln'}
+              {selectedKiln ? 'Edit Kiln' : 'Add New Kiln'}
             </DialogTitle>
-            <DialogDescription>
-              {selectedKiln 
-                ? 'Update the kiln details below.' 
-                : 'Fill in the kiln details below.'}
-            </DialogDescription>
           </DialogHeader>
-          <Form {...form}>
-            <form onSubmit={form.handleSubmit(handleCreateOrUpdate)} className="space-y-4">
-              <FormField
-                control={form.control}
-                name="name"
-                render={({ field }) => (
-                  <FormItem>
-                    <FormLabel>Name*</FormLabel>
-                    <FormControl>
-                      <Input placeholder="Enter kiln name" {...field} />
-                    </FormControl>
-                    <FormMessage />
-                  </FormItem>
-                )}
-              />
-              <FormField
-                control={form.control}
-                name="type"
-                render={({ field }) => (
-                  <FormItem>
-                    <FormLabel>Type</FormLabel>
-                    <FormControl>
-                      <Input placeholder="Enter kiln type" {...field} />
-                    </FormControl>
-                    <FormMessage />
-                  </FormItem>
-                )}
-              />
-              <div className="grid grid-cols-2 gap-4">
-                <FormField
-                  control={form.control}
-                  name="capacity"
-                  render={({ field }) => (
-                    <FormItem>
-                      <FormLabel>Capacity</FormLabel>
-                      <FormControl>
-                        <Input 
-                          type="number" 
-                          placeholder="Enter capacity" 
-                          {...field} 
-                          value={field.value === undefined ? '' : field.value}
-                        />
-                      </FormControl>
-                      <FormMessage />
-                    </FormItem>
-                  )}
-                />
-                <FormField
-                  control={form.control}
-                  name="capacity_unit"
-                  render={({ field }) => (
-                    <FormItem>
-                      <FormLabel>Unit</FormLabel>
-                      <Select 
-                        onValueChange={field.onChange} 
-                        value={field.value || ''}
-                      >
-                        <FormControl>
-                          <SelectTrigger>
-                            <SelectValue placeholder="Select unit" />
-                          </SelectTrigger>
-                        </FormControl>
-                        <SelectContent>
-                          <SelectItem value="kg">kg</SelectItem>
-                          <SelectItem value="tonnes">tonnes</SelectItem>
-                          <SelectItem value="cubic meters">cubic meters</SelectItem>
-                        </SelectContent>
-                      </Select>
-                      <FormMessage />
-                    </FormItem>
-                  )}
+          <form onSubmit={handleSubmit}>
+            <div className="grid gap-4 py-4">
+              <div className="grid grid-cols-4 items-center gap-4">
+                <Label htmlFor="type" className="text-right">
+                  Type
+                </Label>
+                <Input
+                  id="type"
+                  name="type"
+                  value={formData.type}
+                  onChange={handleInputChange}
+                  className="col-span-3"
+                  required
                 />
               </div>
-              <FormField
-                control={form.control}
-                name="location_id"
-                render={({ field }) => (
-                  <FormItem>
-                    <FormLabel>Location</FormLabel>
-                    <Select 
-                      onValueChange={field.onChange} 
-                      value={field.value || ''}
-                    >
-                      <FormControl>
-                        <SelectTrigger>
-                          <SelectValue placeholder="Select a location" />
-                        </SelectTrigger>
-                      </FormControl>
-                      <SelectContent>
-                        {locations.map((location) => (
-                          <SelectItem key={location.id} value={location.id}>
-                            {location.name}
-                          </SelectItem>
-                        ))}
-                      </SelectContent>
-                    </Select>
-                    <FormMessage />
-                  </FormItem>
-                )}
-              />
-              <FormField
-                control={form.control}
-                name="coordinator_id"
-                render={({ field }) => (
-                  <FormItem>
-                    <FormLabel>Coordinator</FormLabel>
-                    <Select 
-                      onValueChange={field.onChange} 
-                      value={field.value || ''}
-                    >
-                      <FormControl>
-                        <SelectTrigger>
-                          <SelectValue placeholder="Select a coordinator" />
-                        </SelectTrigger>
-                      </FormControl>
-                      <SelectContent>
-                        {coordinators.map((coordinator) => (
-                          <SelectItem key={coordinator.id} value={coordinator.id}>
-                            {coordinator.name}
-                          </SelectItem>
-                        ))}
-                      </SelectContent>
-                    </Select>
-                    <FormMessage />
-                  </FormItem>
-                )}
-              />
-              <FormField
-                control={form.control}
-                name="status"
-                render={({ field }) => (
-                  <FormItem>
-                    <FormLabel>Status</FormLabel>
-                    <Select 
-                      onValueChange={field.onChange} 
-                      defaultValue={field.value}
-                    >
-                      <FormControl>
-                        <SelectTrigger>
-                          <SelectValue placeholder="Select status" />
-                        </SelectTrigger>
-                      </FormControl>
-                      <SelectContent>
-                        <SelectItem value="active">Active</SelectItem>
-                        <SelectItem value="inactive">Inactive</SelectItem>
-                        <SelectItem value="maintenance">Maintenance</SelectItem>
-                      </SelectContent>
-                    </Select>
-                    <FormMessage />
-                  </FormItem>
-                )}
-              />
-              <DialogFooter>
-                <Button 
-                  type="button" 
-                  variant="outline" 
-                  onClick={() => setIsFormDialogOpen(false)}
+              <div className="grid grid-cols-4 items-center gap-4">
+                <Label htmlFor="capacity" className="text-right">
+                  Capacity
+                </Label>
+                <div className="col-span-3 flex gap-2">
+                  <Input
+                    id="capacity"
+                    name="capacity"
+                    type="number"
+                    step="0.01"
+                    value={formData.capacity}
+                    onChange={handleInputChange}
+                    className="flex-1"
+                  />
+                  <Select 
+                    value={formData.capacity_unit} 
+                    onValueChange={(value) => handleSelectChange('capacity_unit', value)}
+                  >
+                    <SelectTrigger className="w-28">
+                      <SelectValue placeholder="Unit" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="kg">kg</SelectItem>
+                      <SelectItem value="ton">ton</SelectItem>
+                      <SelectItem value="lb">lb</SelectItem>
+                    </SelectContent>
+                  </Select>
+                </div>
+              </div>
+              <div className="grid grid-cols-4 items-center gap-4">
+                <Label htmlFor="location_id" className="text-right">
+                  Location
+                </Label>
+                <Select 
+                  value={formData.location_id} 
+                  onValueChange={(value) => handleSelectChange('location_id', value)}
                 >
-                  Cancel
-                </Button>
-                <Button type="submit">
-                  {selectedKiln ? 'Update' : 'Create'}
-                </Button>
-              </DialogFooter>
-            </form>
-          </Form>
+                  <SelectTrigger className="col-span-3">
+                    <SelectValue placeholder="Select a location" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {locations.map((location) => (
+                      <SelectItem key={location.id} value={location.id}>
+                        {location.name}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+              <div className="grid grid-cols-4 items-center gap-4">
+                <Label htmlFor="coordinator_id" className="text-right">
+                  Coordinator
+                </Label>
+                <Select 
+                  value={formData.coordinator_id} 
+                  onValueChange={(value) => handleSelectChange('coordinator_id', value)}
+                >
+                  <SelectTrigger className="col-span-3">
+                    <SelectValue placeholder="Select a coordinator" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {coordinators.map((coordinator) => (
+                      <SelectItem key={coordinator.id} value={coordinator.id}>
+                        {coordinator.name}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+              <div className="grid grid-cols-4 items-center gap-4">
+                <Label htmlFor="status" className="text-right">
+                  Status
+                </Label>
+                <Select 
+                  value={formData.status} 
+                  onValueChange={(value) => handleSelectChange('status', value)}
+                >
+                  <SelectTrigger className="col-span-3">
+                    <SelectValue placeholder="Select status" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="active">Active</SelectItem>
+                    <SelectItem value="inactive">Inactive</SelectItem>
+                    <SelectItem value="maintenance">Maintenance</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
+            </div>
+            <DialogFooter>
+              <Button type="button" variant="outline" onClick={() => setIsDialogOpen(false)}>
+                Cancel
+              </Button>
+              <Button type="submit">
+                {selectedKiln ? 'Update' : 'Add'} Kiln
+              </Button>
+            </DialogFooter>
+          </form>
         </DialogContent>
       </Dialog>
 
@@ -469,22 +417,13 @@ const Kilns = () => {
         <DialogContent>
           <DialogHeader>
             <DialogTitle>Confirm Deletion</DialogTitle>
-            <DialogDescription>
-              Are you sure you want to delete the kiln "{selectedKiln?.name}"? 
-              This action cannot be undone.
-            </DialogDescription>
           </DialogHeader>
+          <p>Are you sure you want to delete this kiln? This action cannot be undone.</p>
           <DialogFooter>
-            <Button 
-              variant="outline" 
-              onClick={() => setIsDeleteDialogOpen(false)}
-            >
+            <Button variant="outline" onClick={() => setIsDeleteDialogOpen(false)}>
               Cancel
             </Button>
-            <Button 
-              variant="destructive" 
-              onClick={handleDelete}
-            >
+            <Button variant="destructive" onClick={handleDelete}>
               Delete
             </Button>
           </DialogFooter>

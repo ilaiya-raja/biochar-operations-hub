@@ -1,8 +1,9 @@
 
 import { useState, useEffect } from 'react';
-import { Plus, Pencil, Trash2, Search, SproutIcon } from 'lucide-react';
+import { Plus, Pencil, Trash2, Search } from 'lucide-react';
 import { Input } from '@/components/ui/input';
 import { Button } from '@/components/ui/button';
+import { toast } from 'sonner';
 import {
   Table,
   TableBody,
@@ -21,76 +22,41 @@ import {
 import {
   Dialog,
   DialogContent,
-  DialogDescription,
   DialogFooter,
   DialogHeader,
   DialogTitle,
 } from '@/components/ui/dialog';
-import {
-  Form,
-  FormControl,
-  FormField,
-  FormItem,
-  FormLabel,
-  FormMessage,
-} from '@/components/ui/form';
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from '@/components/ui/select';
+import { Label } from '@/components/ui/label';
 import { Spinner } from '@/components/Spinner';
-import { useForm } from 'react-hook-form';
-import { zodResolver } from '@hookform/resolvers/zod';
-import * as z from 'zod';
 import { supabase } from '@/lib/supabase';
-import { toast } from '@/hooks/use-toast';
 
 interface Fertilizer {
   id: string;
   name: string;
   type: string;
-  batch_number: string;
-  produced_date: string;
+  batch_number?: string;
+  produced_date?: string;
   quantity: number;
   quantity_unit: string;
   status: string;
   created_at: string;
 }
 
-const formSchema = z.object({
-  name: z.string().min(2, { message: 'Name must be at least 2 characters.' }),
-  type: z.string().min(1, { message: 'Please select a type.' }),
-  batch_number: z.string().optional(),
-  produced_date: z.string().optional(),
-  quantity: z.coerce.number().min(0, { message: 'Quantity must be a positive number.' }),
-  quantity_unit: z.string().min(1, { message: 'Please select a unit.' }),
-  status: z.string().default('available'),
-});
-
-type FormValues = z.infer<typeof formSchema>;
-
 const Fertilizers = () => {
   const [fertilizers, setFertilizers] = useState<Fertilizer[]>([]);
   const [loading, setLoading] = useState(true);
   const [searchQuery, setSearchQuery] = useState('');
-  const [selectedFertilizer, setSelectedFertilizer] = useState<Fertilizer | null>(null);
+  const [isDialogOpen, setIsDialogOpen] = useState(false);
   const [isDeleteDialogOpen, setIsDeleteDialogOpen] = useState(false);
-  const [isFormDialogOpen, setIsFormDialogOpen] = useState(false);
-
-  const form = useForm<FormValues>({
-    resolver: zodResolver(formSchema),
-    defaultValues: {
-      name: '',
-      type: '',
-      batch_number: '',
-      produced_date: '',
-      quantity: 0,
-      quantity_unit: 'kg',
-      status: 'available',
-    },
+  const [selectedFertilizer, setSelectedFertilizer] = useState<Fertilizer | null>(null);
+  const [formData, setFormData] = useState({
+    name: '',
+    type: '',
+    batch_number: '',
+    produced_date: '',
+    quantity: '',
+    quantity_unit: 'kg',
+    status: 'available'
   });
 
   const fetchFertilizers = async () => {
@@ -101,18 +67,11 @@ const Fertilizers = () => {
         .select('*')
         .order('created_at', { ascending: false });
 
-      if (error) {
-        throw error;
-      }
-
+      if (error) throw error;
       setFertilizers(data || []);
     } catch (error) {
       console.error('Error fetching fertilizers:', error);
-      toast({
-        title: 'Error',
-        description: 'Failed to fetch fertilizers',
-        variant: 'destructive',
-      });
+      toast.error('Failed to load fertilizers');
     } finally {
       setLoading(false);
     }
@@ -122,50 +81,48 @@ const Fertilizers = () => {
     fetchFertilizers();
   }, []);
 
-  const handleCreateOrUpdate = async (values: FormValues) => {
+  const handleInputChange = (e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement>) => {
+    const { name, value } = e.target;
+    setFormData(prev => ({ ...prev, [name]: value }));
+  };
+
+  const handleSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
     try {
+      const fertilizerData = {
+        ...formData,
+        quantity: parseFloat(formData.quantity)
+      };
+
       if (selectedFertilizer) {
         const { error } = await supabase
           .from('fertilizers')
-          .update(values)
+          .update(fertilizerData)
           .eq('id', selectedFertilizer.id);
 
         if (error) throw error;
-        
-        toast({
-          title: 'Success',
-          description: 'Fertilizer updated successfully',
-        });
+        toast.success('Fertilizer updated successfully');
       } else {
         const { error } = await supabase
           .from('fertilizers')
-          .insert([values]);
+          .insert([fertilizerData]);
 
         if (error) throw error;
-        
-        toast({
-          title: 'Success',
-          description: 'Fertilizer created successfully',
-        });
+        toast.success('Fertilizer added successfully');
       }
-      
+
+      setIsDialogOpen(false);
+      resetForm();
       fetchFertilizers();
-      setIsFormDialogOpen(false);
-      form.reset();
-      setSelectedFertilizer(null);
     } catch (error) {
       console.error('Error saving fertilizer:', error);
-      toast({
-        title: 'Error',
-        description: 'Failed to save fertilizer',
-        variant: 'destructive',
-      });
+      toast.error('Failed to save fertilizer');
     }
   };
 
   const handleDelete = async () => {
     if (!selectedFertilizer) return;
-    
+
     try {
       const { error } = await supabase
         .from('fertilizers')
@@ -173,37 +130,40 @@ const Fertilizers = () => {
         .eq('id', selectedFertilizer.id);
 
       if (error) throw error;
-      
-      toast({
-        title: 'Success',
-        description: 'Fertilizer deleted successfully',
-      });
-      
-      fetchFertilizers();
+      toast.success('Fertilizer deleted successfully');
       setIsDeleteDialogOpen(false);
-      setSelectedFertilizer(null);
+      fetchFertilizers();
     } catch (error) {
       console.error('Error deleting fertilizer:', error);
-      toast({
-        title: 'Error',
-        description: 'Failed to delete fertilizer',
-        variant: 'destructive',
-      });
+      toast.error('Failed to delete fertilizer');
     }
+  };
+
+  const resetForm = () => {
+    setFormData({
+      name: '',
+      type: '',
+      batch_number: '',
+      produced_date: '',
+      quantity: '',
+      quantity_unit: 'kg',
+      status: 'available'
+    });
+    setSelectedFertilizer(null);
   };
 
   const openEditDialog = (fertilizer: Fertilizer) => {
     setSelectedFertilizer(fertilizer);
-    form.reset({
+    setFormData({
       name: fertilizer.name,
       type: fertilizer.type,
-      batch_number: fertilizer.batch_number,
-      produced_date: fertilizer.produced_date,
-      quantity: fertilizer.quantity,
+      batch_number: fertilizer.batch_number || '',
+      produced_date: fertilizer.produced_date ? new Date(fertilizer.produced_date).toISOString().split('T')[0] : '',
+      quantity: fertilizer.quantity.toString(),
       quantity_unit: fertilizer.quantity_unit,
-      status: fertilizer.status,
+      status: fertilizer.status
     });
-    setIsFormDialogOpen(true);
+    setIsDialogOpen(true);
   };
 
   const openDeleteDialog = (fertilizer: Fertilizer) => {
@@ -211,45 +171,35 @@ const Fertilizers = () => {
     setIsDeleteDialogOpen(true);
   };
 
-  const openCreateDialog = () => {
-    setSelectedFertilizer(null);
-    form.reset({
-      name: '',
-      type: '',
-      batch_number: '',
-      produced_date: '',
-      quantity: 0,
-      quantity_unit: 'kg',
-      status: 'available',
-    });
-    setIsFormDialogOpen(true);
-  };
-
-  const filteredFertilizers = fertilizers.filter(fertilizer => 
+  const filteredFertilizers = fertilizers.filter(fertilizer =>
     fertilizer.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
     fertilizer.type.toLowerCase().includes(searchQuery.toLowerCase()) ||
-    fertilizer.batch_number?.toLowerCase().includes(searchQuery.toLowerCase())
+    fertilizer.id.toLowerCase().includes(searchQuery.toLowerCase()) ||
+    (fertilizer.batch_number && fertilizer.batch_number.toLowerCase().includes(searchQuery.toLowerCase()))
   );
 
   return (
     <div className="space-y-6">
-      <div className="flex flex-col justify-between gap-4 md:flex-row">
+      <div className="flex flex-col md:flex-row justify-between md:items-center gap-4">
         <div>
           <h1 className="text-3xl font-bold tracking-tight">Biochar Fertilizer</h1>
           <p className="text-muted-foreground">
-            Manage fertilizer inventory produced from biochar.
+            Manage biochar fertilizer inventory and track batch information
           </p>
         </div>
-        <Button onClick={openCreateDialog}>
+        <Button onClick={() => {
+          resetForm();
+          setIsDialogOpen(true);
+        }}>
           <Plus className="mr-2 h-4 w-4" /> Add Fertilizer
         </Button>
       </div>
 
       <div className="flex items-center space-x-2">
-        <Search className="h-5 w-5 text-muted-foreground" />
+        <Search className="h-4 w-4 text-muted-foreground" />
         <Input
           placeholder="Search fertilizers..."
-          className="max-w-sm"
+          className="max-w-md"
           value={searchQuery}
           onChange={(e) => setSearchQuery(e.target.value)}
         />
@@ -257,9 +207,9 @@ const Fertilizers = () => {
 
       <Card>
         <CardHeader>
-          <CardTitle>Biochar Fertilizers</CardTitle>
+          <CardTitle>Fertilizers</CardTitle>
           <CardDescription>
-            A list of all fertilizers produced from biochar.
+            A list of all biochar fertilizer batches in inventory
           </CardDescription>
         </CardHeader>
         <CardContent>
@@ -271,10 +221,10 @@ const Fertilizers = () => {
             <Table>
               <TableHeader>
                 <TableRow>
+                  <TableHead>ID</TableHead>
                   <TableHead>Name</TableHead>
                   <TableHead>Type</TableHead>
-                  <TableHead>Batch Number</TableHead>
-                  <TableHead>Production Date</TableHead>
+                  <TableHead>Batch</TableHead>
                   <TableHead>Quantity</TableHead>
                   <TableHead>Status</TableHead>
                   <TableHead className="text-right">Actions</TableHead>
@@ -284,23 +234,16 @@ const Fertilizers = () => {
                 {filteredFertilizers.length === 0 ? (
                   <TableRow>
                     <TableCell colSpan={7} className="text-center">
-                      No fertilizers found.
+                      No fertilizers found
                     </TableCell>
                   </TableRow>
                 ) : (
                   filteredFertilizers.map((fertilizer) => (
                     <TableRow key={fertilizer.id}>
-                      <TableCell>
-                        <div className="flex items-center">
-                          <SproutIcon className="mr-2 h-4 w-4 text-biochar-600" />
-                          {fertilizer.name}
-                        </div>
-                      </TableCell>
+                      <TableCell className="font-mono text-xs">{fertilizer.id.slice(0, 8)}</TableCell>
+                      <TableCell className="font-medium">{fertilizer.name}</TableCell>
                       <TableCell>{fertilizer.type}</TableCell>
                       <TableCell>{fertilizer.batch_number || '-'}</TableCell>
-                      <TableCell>
-                        {fertilizer.produced_date ? new Date(fertilizer.produced_date).toLocaleDateString() : '-'}
-                      </TableCell>
                       <TableCell>{fertilizer.quantity} {fertilizer.quantity_unit}</TableCell>
                       <TableCell>
                         <span className={`px-2 py-1 rounded-full text-xs font-medium ${
@@ -338,166 +281,121 @@ const Fertilizers = () => {
         </CardContent>
       </Card>
 
-      {/* Create/Edit Fertilizer Dialog */}
-      <Dialog open={isFormDialogOpen} onOpenChange={setIsFormDialogOpen}>
-        <DialogContent>
+      {/* Create/Edit Dialog */}
+      <Dialog open={isDialogOpen} onOpenChange={setIsDialogOpen}>
+        <DialogContent className="sm:max-w-[500px]">
           <DialogHeader>
             <DialogTitle>
-              {selectedFertilizer ? 'Edit Fertilizer' : 'Add Fertilizer'}
+              {selectedFertilizer ? 'Edit Fertilizer' : 'Add New Fertilizer'}
             </DialogTitle>
-            <DialogDescription>
-              {selectedFertilizer 
-                ? 'Update the fertilizer details below.' 
-                : 'Fill in the fertilizer details below.'}
-            </DialogDescription>
           </DialogHeader>
-          <Form {...form}>
-            <form onSubmit={form.handleSubmit(handleCreateOrUpdate)} className="space-y-4">
-              <FormField
-                control={form.control}
-                name="name"
-                render={({ field }) => (
-                  <FormItem>
-                    <FormLabel>Name*</FormLabel>
-                    <FormControl>
-                      <Input placeholder="Enter fertilizer name" {...field} />
-                    </FormControl>
-                    <FormMessage />
-                  </FormItem>
-                )}
-              />
-              <FormField
-                control={form.control}
-                name="type"
-                render={({ field }) => (
-                  <FormItem>
-                    <FormLabel>Type*</FormLabel>
-                    <Select 
-                      onValueChange={field.onChange} 
-                      defaultValue={field.value}
-                    >
-                      <FormControl>
-                        <SelectTrigger>
-                          <SelectValue placeholder="Select fertilizer type" />
-                        </SelectTrigger>
-                      </FormControl>
-                      <SelectContent>
-                        <SelectItem value="biochar">Biochar</SelectItem>
-                        <SelectItem value="biochar_compost">Biochar Compost</SelectItem>
-                        <SelectItem value="biochar_mix">Biochar Mix</SelectItem>
-                        <SelectItem value="other">Other</SelectItem>
-                      </SelectContent>
-                    </Select>
-                    <FormMessage />
-                  </FormItem>
-                )}
-              />
-              <FormField
-                control={form.control}
-                name="batch_number"
-                render={({ field }) => (
-                  <FormItem>
-                    <FormLabel>Batch Number</FormLabel>
-                    <FormControl>
-                      <Input placeholder="Enter batch number" {...field} />
-                    </FormControl>
-                    <FormMessage />
-                  </FormItem>
-                )}
-              />
-              <FormField
-                control={form.control}
-                name="produced_date"
-                render={({ field }) => (
-                  <FormItem>
-                    <FormLabel>Production Date</FormLabel>
-                    <FormControl>
-                      <Input type="date" {...field} />
-                    </FormControl>
-                    <FormMessage />
-                  </FormItem>
-                )}
-              />
-              <div className="flex gap-4">
-                <FormField
-                  control={form.control}
-                  name="quantity"
-                  render={({ field }) => (
-                    <FormItem className="flex-1">
-                      <FormLabel>Quantity*</FormLabel>
-                      <FormControl>
-                        <Input type="number" {...field} />
-                      </FormControl>
-                      <FormMessage />
-                    </FormItem>
-                  )}
-                />
-                <FormField
-                  control={form.control}
-                  name="quantity_unit"
-                  render={({ field }) => (
-                    <FormItem className="w-1/3">
-                      <FormLabel>Unit*</FormLabel>
-                      <Select 
-                        onValueChange={field.onChange} 
-                        defaultValue={field.value}
-                      >
-                        <FormControl>
-                          <SelectTrigger>
-                            <SelectValue placeholder="Unit" />
-                          </SelectTrigger>
-                        </FormControl>
-                        <SelectContent>
-                          <SelectItem value="kg">kg</SelectItem>
-                          <SelectItem value="g">g</SelectItem>
-                          <SelectItem value="ton">ton</SelectItem>
-                          <SelectItem value="lb">lb</SelectItem>
-                        </SelectContent>
-                      </Select>
-                      <FormMessage />
-                    </FormItem>
-                  )}
+          <form onSubmit={handleSubmit}>
+            <div className="grid gap-4 py-4">
+              <div className="grid grid-cols-4 items-center gap-4">
+                <Label htmlFor="name" className="text-right">
+                  Name
+                </Label>
+                <Input
+                  id="name"
+                  name="name"
+                  value={formData.name}
+                  onChange={handleInputChange}
+                  className="col-span-3"
+                  required
                 />
               </div>
-              <FormField
-                control={form.control}
-                name="status"
-                render={({ field }) => (
-                  <FormItem>
-                    <FormLabel>Status</FormLabel>
-                    <Select 
-                      onValueChange={field.onChange} 
-                      defaultValue={field.value}
-                    >
-                      <FormControl>
-                        <SelectTrigger>
-                          <SelectValue placeholder="Select status" />
-                        </SelectTrigger>
-                      </FormControl>
-                      <SelectContent>
-                        <SelectItem value="available">Available</SelectItem>
-                        <SelectItem value="reserved">Reserved</SelectItem>
-                        <SelectItem value="depleted">Depleted</SelectItem>
-                      </SelectContent>
-                    </Select>
-                    <FormMessage />
-                  </FormItem>
-                )}
-              />
-              <DialogFooter>
-                <Button 
-                  type="button" 
-                  variant="outline" 
-                  onClick={() => setIsFormDialogOpen(false)}
+              <div className="grid grid-cols-4 items-center gap-4">
+                <Label htmlFor="type" className="text-right">
+                  Type
+                </Label>
+                <Input
+                  id="type"
+                  name="type"
+                  value={formData.type}
+                  onChange={handleInputChange}
+                  className="col-span-3"
+                  required
+                />
+              </div>
+              <div className="grid grid-cols-4 items-center gap-4">
+                <Label htmlFor="batch_number" className="text-right">
+                  Batch Number
+                </Label>
+                <Input
+                  id="batch_number"
+                  name="batch_number"
+                  value={formData.batch_number}
+                  onChange={handleInputChange}
+                  className="col-span-3"
+                />
+              </div>
+              <div className="grid grid-cols-4 items-center gap-4">
+                <Label htmlFor="produced_date" className="text-right">
+                  Production Date
+                </Label>
+                <Input
+                  id="produced_date"
+                  name="produced_date"
+                  type="date"
+                  value={formData.produced_date}
+                  onChange={handleInputChange}
+                  className="col-span-3"
+                />
+              </div>
+              <div className="grid grid-cols-4 items-center gap-4">
+                <Label htmlFor="quantity" className="text-right">
+                  Quantity
+                </Label>
+                <div className="col-span-3 flex gap-2">
+                  <Input
+                    id="quantity"
+                    name="quantity"
+                    type="number"
+                    step="0.01"
+                    value={formData.quantity}
+                    onChange={handleInputChange}
+                    className="flex-1"
+                    required
+                  />
+                  <select
+                    id="quantity_unit"
+                    name="quantity_unit"
+                    value={formData.quantity_unit}
+                    onChange={handleInputChange}
+                    className="px-3 py-2 border rounded-md"
+                  >
+                    <option value="kg">kg</option>
+                    <option value="ton">ton</option>
+                    <option value="lb">lb</option>
+                  </select>
+                </div>
+              </div>
+              <div className="grid grid-cols-4 items-center gap-4">
+                <Label htmlFor="status" className="text-right">
+                  Status
+                </Label>
+                <select
+                  id="status"
+                  name="status"
+                  value={formData.status}
+                  onChange={handleInputChange}
+                  className="px-3 py-2 border rounded-md col-span-3"
                 >
-                  Cancel
-                </Button>
-                <Button type="submit">
-                  {selectedFertilizer ? 'Update' : 'Create'}
-                </Button>
-              </DialogFooter>
-            </form>
-          </Form>
+                  <option value="available">Available</option>
+                  <option value="reserved">Reserved</option>
+                  <option value="used">Used</option>
+                </select>
+              </div>
+            </div>
+            <DialogFooter>
+              <Button type="button" variant="outline" onClick={() => setIsDialogOpen(false)}>
+                Cancel
+              </Button>
+              <Button type="submit">
+                {selectedFertilizer ? 'Update' : 'Add'} Fertilizer
+              </Button>
+            </DialogFooter>
+          </form>
         </DialogContent>
       </Dialog>
 
@@ -506,22 +404,13 @@ const Fertilizers = () => {
         <DialogContent>
           <DialogHeader>
             <DialogTitle>Confirm Deletion</DialogTitle>
-            <DialogDescription>
-              Are you sure you want to delete the fertilizer "{selectedFertilizer?.name}"? 
-              This action cannot be undone.
-            </DialogDescription>
           </DialogHeader>
+          <p>Are you sure you want to delete this fertilizer? This action cannot be undone.</p>
           <DialogFooter>
-            <Button 
-              variant="outline" 
-              onClick={() => setIsDeleteDialogOpen(false)}
-            >
+            <Button variant="outline" onClick={() => setIsDeleteDialogOpen(false)}>
               Cancel
             </Button>
-            <Button 
-              variant="destructive" 
-              onClick={handleDelete}
-            >
+            <Button variant="destructive" onClick={handleDelete}>
               Delete
             </Button>
           </DialogFooter>

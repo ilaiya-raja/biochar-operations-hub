@@ -151,6 +151,7 @@ const Coordinators = () => {
 
   const filteredCoordinators = coordinators.filter(coordinator => 
     coordinator.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
+    coordinator.id.toLowerCase().includes(searchQuery.toLowerCase()) ||
     (coordinator.email && coordinator.email.toLowerCase().includes(searchQuery.toLowerCase())) ||
     (coordinator.phone && coordinator.phone.includes(searchQuery)) ||
     (coordinator.location?.name && coordinator.location.name.toLowerCase().includes(searchQuery.toLowerCase()))
@@ -196,6 +197,7 @@ const Coordinators = () => {
             <Table>
               <TableHeader>
                 <TableRow>
+                  <TableHead>ID</TableHead>
                   <TableHead>Name</TableHead>
                   <TableHead>Email</TableHead>
                   <TableHead>Phone</TableHead>
@@ -207,13 +209,14 @@ const Coordinators = () => {
               <TableBody>
                 {filteredCoordinators.length === 0 ? (
                   <TableRow>
-                    <TableCell colSpan={6} className="text-center">
+                    <TableCell colSpan={7} className="text-center">
                       No coordinators found.
                     </TableCell>
                   </TableRow>
                 ) : (
                   filteredCoordinators.map((coordinator) => (
                     <TableRow key={coordinator.id}>
+                      <TableCell className="font-mono text-xs">{coordinator.id.slice(0, 8)}</TableCell>
                       <TableCell>{coordinator.name}</TableCell>
                       <TableCell>
                         {coordinator.email ? (

@@ -10,8 +10,7 @@ import {
   PackageIcon, 
   SproutIcon, 
   Users, 
-  UserCog, 
-  ClipboardList
+  UserCog
 } from 'lucide-react';
 
 interface SidebarProps {
@@ -33,9 +32,7 @@ export const Sidebar = ({ isOpen }: SidebarProps) => {
         { name: 'Kiln Master', href: '/kilns', icon: FlameIcon },
       ]
     },
-    { name: 'Coordinator Activities', href: '/activities', icon: ClipboardList },
     { name: 'Biochar Fertilizer', href: '/fertilizer', icon: SproutIcon },
-    { name: 'Analytics', href: '/analytics', icon: BarChart3 },
   ];
 
   return (
