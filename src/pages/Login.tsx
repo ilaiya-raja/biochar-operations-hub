@@ -44,18 +44,36 @@ const Login = () => {
     
     try {
       if (isSignUp) {
-        // Handle sign up
-        const { error } = await supabase.auth.signUp({
+        // Handle sign up - admin registration only
+        const { error: signUpError } = await supabase.auth.signUp({
           email,
           password,
           options: {
-            emailRedirectTo: window.location.origin
+            emailRedirectTo: window.location.origin,
+            data: {
+              role: 'admin'  // Default role for new sign-ups
+            }
           }
         });
         
-        if (error) {
-          setErrorMsg(error.message || 'Error creating account');
+        if (signUpError) {
+          setErrorMsg(signUpError.message || 'Error creating account');
         } else {
+          // Create user profile
+          const { data: userData } = await supabase.auth.getUser();
+          if (userData.user) {
+            const { error: profileError } = await supabase
+              .from('user_profiles')
+              .insert({
+                id: userData.user.id,
+                role: 'admin'
+              });
+            
+            if (profileError) {
+              console.error('Error creating user profile:', profileError);
+            }
+          }
+          
           toast.success('Account created! Please check your email to verify your account or sign in.');
           setIsSignUp(false);
         }
@@ -85,7 +103,7 @@ const Login = () => {
           <CardTitle className="text-2xl font-bold">Biochar Operations Hub</CardTitle>
           <CardDescription>
             {isSignUp 
-              ? "Create a new account to get started" 
+              ? "Create a new admin account to get started" 
               : "Enter your credentials to sign in to your account"}
           </CardDescription>
         </CardHeader>
@@ -137,7 +155,9 @@ const Login = () => {
           <CardFooter className="flex flex-col gap-4">
             <Button type="submit" className="w-full bg-biochar-600 hover:bg-biochar-700" disabled={isSubmitting}>
               {isSubmitting ? <Spinner size="sm" className="mr-2" /> : null}
-              {isSubmitting ? (isSignUp ? 'Creating account...' : 'Signing in...') : (isSignUp ? 'Create account' : 'Sign in')}
+              {isSubmitting 
+                ? (isSignUp ? 'Creating account...' : 'Signing in...') 
+                : (isSignUp ? 'Create admin account' : 'Sign in')}
             </Button>
             <div className="text-center text-sm">
               {isSignUp ? (
@@ -159,7 +179,7 @@ const Login = () => {
                     className="text-primary hover:underline"
                     onClick={() => setIsSignUp(true)}
                   >
-                    Create one
+                    Create an admin account
                   </button>
                 </p>
               )}

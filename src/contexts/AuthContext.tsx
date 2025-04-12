@@ -5,9 +5,16 @@ import { supabase } from '@/lib/supabase';
 import { useNavigate } from 'react-router-dom';
 import { toast } from 'sonner';
 
+interface UserProfile {
+  id: string;
+  role: 'admin' | 'coordinator';
+  coordinator_id?: string | null;
+}
+
 interface AuthContextProps {
   user: User | null;
   session: Session | null;
+  userProfile: UserProfile | null;
   isLoading: boolean;
   login: (email: string, password: string) => Promise<{ error: any | null }>;
   logout: () => Promise<void>;
@@ -18,15 +25,44 @@ const AuthContext = createContext<AuthContextProps | undefined>(undefined);
 export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
   const [user, setUser] = useState<User | null>(null);
   const [session, setSession] = useState<Session | null>(null);
+  const [userProfile, setUserProfile] = useState<UserProfile | null>(null);
   const [isLoading, setIsLoading] = useState(true);
   const navigate = useNavigate();
+
+  const fetchUserProfile = async (userId: string) => {
+    try {
+      const { data, error } = await supabase
+        .from('user_profiles')
+        .select('*')
+        .eq('id', userId)
+        .single();
+
+      if (error) {
+        console.error('Error fetching user profile:', error);
+        return null;
+      }
+
+      return data as UserProfile;
+    } catch (error) {
+      console.error('Unexpected error fetching user profile:', error);
+      return null;
+    }
+  };
 
   useEffect(() => {
     // Set up the listener for auth state changes
     const { data: authListener } = supabase.auth.onAuthStateChange(
-      (event, session) => {
+      async (event, session) => {
         setSession(session);
         setUser(session?.user ?? null);
+        
+        if (session?.user) {
+          const profile = await fetchUserProfile(session.user.id);
+          setUserProfile(profile);
+        } else {
+          setUserProfile(null);
+        }
+        
         setIsLoading(false);
 
         if (event === 'SIGNED_OUT') {
@@ -39,10 +75,20 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
 
     // Initialize the current session
     const initSession = async () => {
-      const { data } = await supabase.auth.getSession();
-      setSession(data.session);
-      setUser(data.session?.user ?? null);
-      setIsLoading(false);
+      try {
+        const { data } = await supabase.auth.getSession();
+        setSession(data.session);
+        setUser(data.session?.user ?? null);
+        
+        if (data.session?.user) {
+          const profile = await fetchUserProfile(data.session.user.id);
+          setUserProfile(profile);
+        }
+      } catch (error) {
+        console.error('Error initializing auth session:', error);
+      } finally {
+        setIsLoading(false);
+      }
     };
 
     initSession();
@@ -87,6 +133,7 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
       value={{
         user,
         session,
+        userProfile,
         isLoading,
         login,
         logout,

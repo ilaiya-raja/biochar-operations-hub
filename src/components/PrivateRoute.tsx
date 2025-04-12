@@ -3,8 +3,12 @@ import { Navigate, Outlet } from 'react-router-dom';
 import { useAuth } from '@/contexts/AuthContext';
 import { Spinner } from '@/components/Spinner';
 
-export const PrivateRoute = () => {
-  const { user, isLoading } = useAuth();
+interface PrivateRouteProps {
+  requiredRole?: 'admin' | 'coordinator' | 'any';
+}
+
+export const PrivateRoute = ({ requiredRole = 'any' }: PrivateRouteProps) => {
+  const { user, isLoading, userProfile } = useAuth();
 
   if (isLoading) {
     return (
@@ -14,5 +18,16 @@ export const PrivateRoute = () => {
     );
   }
 
-  return user ? <Outlet /> : <Navigate to="/login" replace />;
+  // Check if user is authenticated
+  if (!user) {
+    return <Navigate to="/login" replace />;
+  }
+
+  // If a specific role is required, check if the user has that role
+  if (requiredRole !== 'any' && userProfile?.role !== requiredRole) {
+    // If user doesn't have the required role, redirect to dashboard
+    return <Navigate to="/dashboard" replace />;
+  }
+
+  return <Outlet />;
 };
