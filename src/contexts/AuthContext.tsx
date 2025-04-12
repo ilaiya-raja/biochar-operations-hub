@@ -31,6 +31,8 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
 
         if (event === 'SIGNED_OUT') {
           navigate('/login');
+        } else if (event === 'SIGNED_IN') {
+          navigate('/dashboard');
         }
       }
     );
@@ -63,7 +65,6 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
       }
 
       toast.success('Successfully logged in');
-      navigate('/dashboard');
       return { error: null };
     } catch (error) {
       return { error };
