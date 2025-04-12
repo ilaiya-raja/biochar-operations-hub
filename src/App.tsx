@@ -10,7 +10,13 @@ import { DashboardLayout } from "@/components/layouts/DashboardLayout";
 import Login from "@/pages/Login";
 import Dashboard from "@/pages/Dashboard";
 import Farmers from "@/pages/Farmers";
-import NotFound from "@/pages/NotFound";
+import Coordinator from "@/pages/Coordinators";
+import Kiln from "@/pages/Kilns";
+import Activities from "@/pages/Activities";
+import Fertilizer from "@/pages/Fertilizers";
+import Analytics from "@/pages/Analytics";
+import Locations from "@/pages/Locations";
+
 
 const queryClient = new QueryClient();
 
@@ -31,12 +37,12 @@ const App = () => (
                 <Route path="/farmers" element={<Farmers />} />
                 {/* Add other routes for master management modules */}
                 <Route path="/biomass" element={<NotFound />} />
-                <Route path="/locations" element={<NotFound />} />
-                <Route path="/coordinators" element={<NotFound />} />
-                <Route path="/kilns" element={<NotFound />} />
-                <Route path="/activities" element={<NotFound />} />
-                <Route path="/fertilizer" element={<NotFound />} />
-                <Route path="/analytics" element={<NotFound />} />
+                <Route path="/locations" element={< Locations/>} />
+                <Route path="/coordinators" element={<Coordinator />} />
+                <Route path="/kilns" element={<Kiln />} />
+                <Route path="/activities" element={<Activities />} />
+                <Route path="/fertilizer" element={<Fertilizer />} />
+                <Route path="/analytics" element={<Analytics />} />
               </Route>
             </Route>
             
