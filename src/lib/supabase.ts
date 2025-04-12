@@ -14,3 +14,40 @@ export const supabase = createClient(supabaseUrl, supabaseAnonKey, {
     storage: localStorage
   }
 });
+
+// Auth functions
+export const authService = {
+  async signUp(email: string, password: string) {
+    return await supabase.auth.signUp({
+      email,
+      password,
+    });
+  },
+
+  async signIn(email: string, password: string) {
+    return await supabase.auth.signInWithPassword({
+      email,
+      password,
+    });
+  },
+
+  async signOut() {
+    return await supabase.auth.signOut();
+  },
+
+  async getSession() {
+    return await supabase.auth.getSession();
+  },
+
+  async resetPassword(email: string) {
+    return await supabase.auth.resetPasswordForEmail(email, {
+      redirectTo: `${window.location.origin}/reset-password`,
+    });
+  },
+
+  async updatePassword(password: string) {
+    return await supabase.auth.updateUser({
+      password,
+    });
+  },
+};

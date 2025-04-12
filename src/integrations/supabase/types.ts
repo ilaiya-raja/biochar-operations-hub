@@ -9,7 +9,259 @@ export type Json =
 export type Database = {
   public: {
     Tables: {
-      [_ in never]: never
+      activities: {
+        Row: {
+          activity_type: string
+          coordinator_id: string
+          created_at: string
+          date_performed: string
+          description: string | null
+          id: string
+          kiln_id: string | null
+          location_id: string | null
+          quantity: number | null
+          quantity_unit: string | null
+          status: string | null
+          updated_at: string
+        }
+        Insert: {
+          activity_type: string
+          coordinator_id: string
+          created_at?: string
+          date_performed: string
+          description?: string | null
+          id?: string
+          kiln_id?: string | null
+          location_id?: string | null
+          quantity?: number | null
+          quantity_unit?: string | null
+          status?: string | null
+          updated_at?: string
+        }
+        Update: {
+          activity_type?: string
+          coordinator_id?: string
+          created_at?: string
+          date_performed?: string
+          description?: string | null
+          id?: string
+          kiln_id?: string | null
+          location_id?: string | null
+          quantity?: number | null
+          quantity_unit?: string | null
+          status?: string | null
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "activities_coordinator_id_fkey"
+            columns: ["coordinator_id"]
+            isOneToOne: false
+            referencedRelation: "coordinators"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "activities_kiln_id_fkey"
+            columns: ["kiln_id"]
+            isOneToOne: false
+            referencedRelation: "kilns"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "activities_location_id_fkey"
+            columns: ["location_id"]
+            isOneToOne: false
+            referencedRelation: "locations"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      analytics_data: {
+        Row: {
+          coordinator_id: string | null
+          created_at: string
+          date_recorded: string
+          id: string
+          kiln_id: string | null
+          location_id: string | null
+          metric_name: string
+          metric_value: number
+        }
+        Insert: {
+          coordinator_id?: string | null
+          created_at?: string
+          date_recorded: string
+          id?: string
+          kiln_id?: string | null
+          location_id?: string | null
+          metric_name: string
+          metric_value: number
+        }
+        Update: {
+          coordinator_id?: string | null
+          created_at?: string
+          date_recorded?: string
+          id?: string
+          kiln_id?: string | null
+          location_id?: string | null
+          metric_name?: string
+          metric_value?: number
+        }
+        Relationships: [
+          {
+            foreignKeyName: "analytics_data_coordinator_id_fkey"
+            columns: ["coordinator_id"]
+            isOneToOne: false
+            referencedRelation: "coordinators"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "analytics_data_kiln_id_fkey"
+            columns: ["kiln_id"]
+            isOneToOne: false
+            referencedRelation: "kilns"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "analytics_data_location_id_fkey"
+            columns: ["location_id"]
+            isOneToOne: false
+            referencedRelation: "locations"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      coordinators: {
+        Row: {
+          created_at: string
+          email: string | null
+          id: string
+          location_id: string | null
+          name: string
+          phone: string | null
+          status: string | null
+          updated_at: string
+        }
+        Insert: {
+          created_at?: string
+          email?: string | null
+          id?: string
+          location_id?: string | null
+          name: string
+          phone?: string | null
+          status?: string | null
+          updated_at?: string
+        }
+        Update: {
+          created_at?: string
+          email?: string | null
+          id?: string
+          location_id?: string | null
+          name?: string
+          phone?: string | null
+          status?: string | null
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "coordinators_location_id_fkey"
+            columns: ["location_id"]
+            isOneToOne: false
+            referencedRelation: "locations"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      kilns: {
+        Row: {
+          capacity: number | null
+          capacity_unit: string | null
+          coordinator_id: string | null
+          created_at: string
+          id: string
+          location_id: string | null
+          name: string
+          status: string | null
+          type: string | null
+          updated_at: string
+        }
+        Insert: {
+          capacity?: number | null
+          capacity_unit?: string | null
+          coordinator_id?: string | null
+          created_at?: string
+          id?: string
+          location_id?: string | null
+          name: string
+          status?: string | null
+          type?: string | null
+          updated_at?: string
+        }
+        Update: {
+          capacity?: number | null
+          capacity_unit?: string | null
+          coordinator_id?: string | null
+          created_at?: string
+          id?: string
+          location_id?: string | null
+          name?: string
+          status?: string | null
+          type?: string | null
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "kilns_coordinator_id_fkey"
+            columns: ["coordinator_id"]
+            isOneToOne: false
+            referencedRelation: "coordinators"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "kilns_location_id_fkey"
+            columns: ["location_id"]
+            isOneToOne: false
+            referencedRelation: "locations"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      locations: {
+        Row: {
+          address: string | null
+          coordinates: unknown | null
+          country: string | null
+          created_at: string
+          district: string | null
+          id: string
+          name: string
+          state: string | null
+          updated_at: string
+        }
+        Insert: {
+          address?: string | null
+          coordinates?: unknown | null
+          country?: string | null
+          created_at?: string
+          district?: string | null
+          id?: string
+          name: string
+          state?: string | null
+          updated_at?: string
+        }
+        Update: {
+          address?: string | null
+          coordinates?: unknown | null
+          country?: string | null
+          created_at?: string
+          district?: string | null
+          id?: string
+          name?: string
+          state?: string | null
+          updated_at?: string
+        }
+        Relationships: []
+      }
     }
     Views: {
       [_ in never]: never
