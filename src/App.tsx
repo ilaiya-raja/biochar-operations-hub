@@ -19,6 +19,7 @@ import BiomassCollection from "@/pages/coordinator/BiomassCollection";
 import PyrolysisProcess from "@/pages/coordinator/PyrolysisProcess";
 import BiofertilizerDistribution from "@/pages/coordinator/BiofertilizerDistribution";
 import NotFound from "@/pages/NotFound";
+import Index from "@/pages/Index";
 
 const queryClient = new QueryClient();
 
@@ -30,7 +31,7 @@ const App = () => (
           <Toaster />
           <Sonner />
           <Routes>
-            <Route path="/" element={<Navigate to="/dashboard" replace />} />
+            <Route path="/" element={<Index />} />
             <Route path="/login" element={<Login />} />
             
             {/* Routes for both admin and coordinator */}
