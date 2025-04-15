@@ -25,7 +25,8 @@ export const PrivateRoute = ({ requiredRole = 'any' }: PrivateRouteProps) => {
 
   // If a specific role is required, check if the user has that role
   if (requiredRole !== 'any' && userProfile?.role !== requiredRole) {
-    // If user doesn't have the required role, redirect to dashboard
+    console.log('User missing required role:', requiredRole, 'Current role:', userProfile?.role);
+    // Only redirect if user doesn't have the required role
     return <Navigate to="/dashboard" replace />;
   }
 
