@@ -1,4 +1,3 @@
-
 import { Link, useLocation } from 'react-router-dom';
 import { cn } from '@/lib/utils';
 import { 
@@ -12,6 +11,7 @@ import {
   Users, 
   UserCog
 } from 'lucide-react';
+import { useAuth } from '@/lib/auth';
 
 interface SidebarProps {
   isOpen: boolean;
@@ -19,8 +19,9 @@ interface SidebarProps {
 
 export const Sidebar = ({ isOpen }: SidebarProps) => {
   const location = useLocation();
+  const { userRole } = useAuth();
 
-  const navigation = [
+  const adminNavigation = [
     { name: 'Dashboard', href: '/dashboard', icon: HomeIcon },
     { 
       name: 'Master Management', 
@@ -34,6 +35,15 @@ export const Sidebar = ({ isOpen }: SidebarProps) => {
     },
     { name: 'Biochar Fertilizer', href: '/fertilizer', icon: SproutIcon },
   ];
+
+  const coordinatorNavigation = [
+    { name: 'Dashboard', href: '/dashboard', icon: HomeIcon },
+    { name: 'Biomass Collection', href: '/biomass-collection', icon: Leaf },
+    { name: 'Pyrolysis Process', href: '/pyrolysis', icon: FlameIcon },
+    { name: 'Fertilizer Distribution', href: '/fertilizer-distribution', icon: SproutIcon },
+  ];
+
+  const navigation = userRole === 'admin' ? adminNavigation : coordinatorNavigation;
 
   return (
     <aside 

@@ -1,4 +1,3 @@
-
 import React, { createContext, useContext, useEffect, useState } from 'react';
 import { Session, User } from '@supabase/supabase-js';
 import { supabase } from '@/lib/supabase';
@@ -9,6 +8,8 @@ interface AuthContextProps {
   user: User | null;
   session: Session | null;
   isLoading: boolean;
+  userRole: string | null;
+  userProfile: any | null;
   login: (email: string, password: string) => Promise<{ error: any | null }>;
   logout: () => Promise<void>;
 }
@@ -19,39 +20,53 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
   const [user, setUser] = useState<User | null>(null);
   const [session, setSession] = useState<Session | null>(null);
   const [isLoading, setIsLoading] = useState(true);
+  const [userRole, setUserRole] = useState<string | null>(null);
+  const [userProfile, setUserProfile] = useState<any | null>(null);
   const navigate = useNavigate();
 
   useEffect(() => {
-    // Set up the listener for auth state changes
-    const { data: authListener } = supabase.auth.onAuthStateChange(
-      (event, session) => {
+    const initAuth = async () => {
+      const { data } = await supabase.auth.getSession();
+      setSession(data.session);
+      setUser(data.session?.user ?? null);
+      
+      if (data.session?.user) {
+        const [role, profile] = await Promise.all([
+          authService.getUserRole(),
+          authService.getCurrentUserProfile()
+        ]);
+        setUserRole(role);
+        setUserProfile(profile);
+      }
+      
+      setIsLoading(false);
+    };
+
+    const { data: { subscription } } = supabase.auth.onAuthStateChange(
+      async (event, session) => {
         setSession(session);
         setUser(session?.user ?? null);
-        setIsLoading(false);
-
-        if (event === 'SIGNED_OUT') {
-          navigate('/login');
-        } else if (event === 'SIGNED_IN') {
-          navigate('/dashboard');
+        
+        if (session?.user) {
+          const [role, profile] = await Promise.all([
+            authService.getUserRole(),
+            authService.getCurrentUserProfile()
+          ]);
+          setUserRole(role);
+          setUserProfile(profile);
+        } else {
+          setUserRole(null);
+          setUserProfile(null);
         }
       }
     );
 
-    // Initialize the current session
-    const initSession = async () => {
-      const { data } = await supabase.auth.getSession();
-      setSession(data.session);
-      setUser(data.session?.user ?? null);
-      setIsLoading(false);
-    };
+    initAuth();
 
-    initSession();
-
-    // Clean up the listener when the component unmounts
     return () => {
-      authListener.subscription.unsubscribe();
+      subscription.unsubscribe();
     };
-  }, [navigate]);
+  }, []);
 
   const login = async (email: string, password: string) => {
     try {
@@ -88,6 +103,8 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
         user,
         session,
         isLoading,
+        userRole,
+        userProfile,
         login,
         logout,
       }}
