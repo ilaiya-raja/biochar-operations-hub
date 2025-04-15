@@ -131,6 +131,91 @@ export type Database = {
           },
         ]
       }
+      biomass_collections: {
+        Row: {
+          biomass_type_id: string
+          collection_date: string
+          coordinator_id: string
+          created_at: string
+          farmer_id: string
+          id: string
+          photo_url: string | null
+          quantity: number
+          quantity_unit: string
+          updated_at: string
+        }
+        Insert: {
+          biomass_type_id: string
+          collection_date?: string
+          coordinator_id: string
+          created_at?: string
+          farmer_id: string
+          id?: string
+          photo_url?: string | null
+          quantity: number
+          quantity_unit: string
+          updated_at?: string
+        }
+        Update: {
+          biomass_type_id?: string
+          collection_date?: string
+          coordinator_id?: string
+          created_at?: string
+          farmer_id?: string
+          id?: string
+          photo_url?: string | null
+          quantity?: number
+          quantity_unit?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "biomass_collections_biomass_type_id_fkey"
+            columns: ["biomass_type_id"]
+            isOneToOne: false
+            referencedRelation: "biomass_types"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "biomass_collections_coordinator_id_fkey"
+            columns: ["coordinator_id"]
+            isOneToOne: false
+            referencedRelation: "coordinators"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "biomass_collections_farmer_id_fkey"
+            columns: ["farmer_id"]
+            isOneToOne: false
+            referencedRelation: "farmers"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      biomass_types: {
+        Row: {
+          created_at: string
+          description: string | null
+          id: string
+          name: string
+          updated_at: string
+        }
+        Insert: {
+          created_at?: string
+          description?: string | null
+          id?: string
+          name: string
+          updated_at?: string
+        }
+        Update: {
+          created_at?: string
+          description?: string | null
+          id?: string
+          name?: string
+          updated_at?: string
+        }
+        Relationships: []
+      }
       coordinators: {
         Row: {
           created_at: string
@@ -219,6 +304,57 @@ export type Database = {
             columns: ["location_id"]
             isOneToOne: false
             referencedRelation: "locations"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      fertilizer_distributions: {
+        Row: {
+          coordinator_id: string
+          created_at: string
+          distribution_date: string
+          farmer_id: string
+          id: string
+          photo_url: string | null
+          quantity: number
+          quantity_unit: string
+          updated_at: string
+        }
+        Insert: {
+          coordinator_id: string
+          created_at?: string
+          distribution_date?: string
+          farmer_id: string
+          id?: string
+          photo_url?: string | null
+          quantity: number
+          quantity_unit: string
+          updated_at?: string
+        }
+        Update: {
+          coordinator_id?: string
+          created_at?: string
+          distribution_date?: string
+          farmer_id?: string
+          id?: string
+          photo_url?: string | null
+          quantity?: number
+          quantity_unit?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "fertilizer_distributions_coordinator_id_fkey"
+            columns: ["coordinator_id"]
+            isOneToOne: false
+            referencedRelation: "coordinators"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "fertilizer_distributions_farmer_id_fkey"
+            columns: ["farmer_id"]
+            isOneToOne: false
+            referencedRelation: "farmers"
             referencedColumns: ["id"]
           },
         ]
@@ -312,6 +448,105 @@ export type Database = {
           updated_at?: string
         }
         Relationships: []
+      }
+      pyrolysis_processes: {
+        Row: {
+          biomass_type_id: string
+          coordinator_id: string
+          created_at: string
+          end_time: string | null
+          id: string
+          input_quantity: number
+          kiln_id: string
+          output_quantity: number | null
+          photo_url: string | null
+          start_time: string
+          status: string
+          updated_at: string
+        }
+        Insert: {
+          biomass_type_id: string
+          coordinator_id: string
+          created_at?: string
+          end_time?: string | null
+          id?: string
+          input_quantity: number
+          kiln_id: string
+          output_quantity?: number | null
+          photo_url?: string | null
+          start_time?: string
+          status: string
+          updated_at?: string
+        }
+        Update: {
+          biomass_type_id?: string
+          coordinator_id?: string
+          created_at?: string
+          end_time?: string | null
+          id?: string
+          input_quantity?: number
+          kiln_id?: string
+          output_quantity?: number | null
+          photo_url?: string | null
+          start_time?: string
+          status?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "pyrolysis_processes_biomass_type_id_fkey"
+            columns: ["biomass_type_id"]
+            isOneToOne: false
+            referencedRelation: "biomass_types"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "pyrolysis_processes_coordinator_id_fkey"
+            columns: ["coordinator_id"]
+            isOneToOne: false
+            referencedRelation: "coordinators"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "pyrolysis_processes_kiln_id_fkey"
+            columns: ["kiln_id"]
+            isOneToOne: false
+            referencedRelation: "kilns"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      user_profiles: {
+        Row: {
+          coordinator_id: string | null
+          created_at: string
+          id: string
+          role: string
+          updated_at: string
+        }
+        Insert: {
+          coordinator_id?: string | null
+          created_at?: string
+          id: string
+          role: string
+          updated_at?: string
+        }
+        Update: {
+          coordinator_id?: string | null
+          created_at?: string
+          id?: string
+          role?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "user_profiles_coordinator_id_fkey"
+            columns: ["coordinator_id"]
+            isOneToOne: false
+            referencedRelation: "coordinators"
+            referencedColumns: ["id"]
+          },
+        ]
       }
     }
     Views: {

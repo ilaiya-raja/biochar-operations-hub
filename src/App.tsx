@@ -14,6 +14,7 @@ import Coordinator from "@/pages/Coordinators";
 import Kiln from "@/pages/Kilns";
 import Fertilizer from "@/pages/Fertilizers";
 import Locations from "@/pages/Locations";
+import Biomass from "@/pages/Biomass";
 import NotFound from "@/pages/NotFound";
 
 const queryClient = new QueryClient();
@@ -34,7 +35,7 @@ const App = () => (
                 <Route path="/dashboard" element={<Dashboard />} />
                 <Route path="/farmers" element={<Farmers />} />
                 {/* Master management modules */}
-                <Route path="/biomass" element={<NotFound />} />
+                <Route path="/biomass" element={<Biomass />} />
                 <Route path="/locations" element={<Locations/>} />
                 <Route path="/coordinators" element={<Coordinator />} />
                 <Route path="/kilns" element={<Kiln/>} />
