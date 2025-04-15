@@ -12,12 +12,8 @@ import Dashboard from "@/pages/Dashboard";
 import Farmers from "@/pages/Farmers";
 import Coordinator from "@/pages/Coordinators";
 import Kiln from "@/pages/Kilns";
-import Biomass from "@/pages/Biomass";
 import Fertilizer from "@/pages/Fertilizers";
 import Locations from "@/pages/Locations";
-import BiomassCollection from "@/pages/coordinator/BiomassCollection";
-import PyrolysisProcess from "@/pages/coordinator/PyrolysisProcess";
-import BiofertilizerDistribution from "@/pages/coordinator/BiofertilizerDistribution";
 import NotFound from "@/pages/NotFound";
 
 const queryClient = new QueryClient();
@@ -33,27 +29,16 @@ const App = () => (
             <Route path="/" element={<Navigate to="/dashboard" replace />} />
             <Route path="/login" element={<Login />} />
             
-            {/* Routes for both admin and coordinator */}
             <Route element={<PrivateRoute />}>
               <Route element={<DashboardLayout />}>
                 <Route path="/dashboard" element={<Dashboard />} />
-                
-                {/* Admin-only routes */}
-                <Route element={<PrivateRoute requiredRole="admin" />}>
-                  <Route path="/farmers" element={<Farmers />} />
-                  <Route path="/biomass" element={<Biomass />} />
-                  <Route path="/locations" element={<Locations />} />
-                  <Route path="/coordinators" element={<Coordinator />} />
-                  <Route path="/kilns" element={<Kiln />} />
-                  <Route path="/fertilizer" element={<Fertilizer />} />
-                </Route>
-                
-                {/* Coordinator-only routes */}
-                <Route element={<PrivateRoute requiredRole="coordinator" />}>
-                  <Route path="/biomass-collection" element={<BiomassCollection />} />
-                  <Route path="/pyrolysis-process" element={<PyrolysisProcess />} />
-                  <Route path="/biofertilizer-distribution" element={<BiofertilizerDistribution />} />
-                </Route>
+                <Route path="/farmers" element={<Farmers />} />
+                {/* Master management modules */}
+                <Route path="/biomass" element={<NotFound />} />
+                <Route path="/locations" element={<Locations/>} />
+                <Route path="/coordinators" element={<Coordinator />} />
+                <Route path="/kilns" element={<Kiln/>} />
+                <Route path="/fertilizer" element={<Fertilizer/>} />
               </Route>
             </Route>
             

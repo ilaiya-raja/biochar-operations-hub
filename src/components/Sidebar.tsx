@@ -10,11 +10,8 @@ import {
   PackageIcon, 
   SproutIcon, 
   Users, 
-  UserCog,
-  FileText,
-  Droplet
+  UserCog
 } from 'lucide-react';
-import { useAuth } from '@/contexts/AuthContext';
 
 interface SidebarProps {
   isOpen: boolean;
@@ -22,12 +19,8 @@ interface SidebarProps {
 
 export const Sidebar = ({ isOpen }: SidebarProps) => {
   const location = useLocation();
-  const { userProfile } = useAuth();
-  const isAdmin = userProfile?.role === 'admin';
-  const isCoordinator = userProfile?.role === 'coordinator';
 
-  // Navigation for admin role
-  const adminNavigation = [
+  const navigation = [
     { name: 'Dashboard', href: '/dashboard', icon: HomeIcon },
     { 
       name: 'Master Management', 
@@ -41,22 +34,6 @@ export const Sidebar = ({ isOpen }: SidebarProps) => {
     },
     { name: 'Biochar Fertilizer', href: '/fertilizer', icon: SproutIcon },
   ];
-
-  // Navigation for coordinator role
-  const coordinatorNavigation = [
-    { name: 'Dashboard', href: '/dashboard', icon: HomeIcon },
-    { 
-      name: 'Operations', 
-      children: [
-        { name: 'Biomass Collection', href: '/biomass-collection', icon: Leaf },
-        { name: 'Pyrolysis Process', href: '/pyrolysis-process', icon: FlameIcon },
-        { name: 'Biofertilizer Distribution', href: '/biofertilizer-distribution', icon: SproutIcon },
-      ]
-    },
-  ];
-
-  // Choose navigation based on user role
-  const navigation = isAdmin ? adminNavigation : coordinatorNavigation;
 
   return (
     <aside 
