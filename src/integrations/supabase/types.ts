@@ -516,38 +516,6 @@ export type Database = {
           },
         ]
       }
-      user_profiles: {
-        Row: {
-          coordinator_id: string | null
-          created_at: string
-          id: string
-          role: string
-          updated_at: string
-        }
-        Insert: {
-          coordinator_id?: string | null
-          created_at?: string
-          id: string
-          role: string
-          updated_at?: string
-        }
-        Update: {
-          coordinator_id?: string | null
-          created_at?: string
-          id?: string
-          role?: string
-          updated_at?: string
-        }
-        Relationships: [
-          {
-            foreignKeyName: "user_profiles_coordinator_id_fkey"
-            columns: ["coordinator_id"]
-            isOneToOne: false
-            referencedRelation: "coordinators"
-            referencedColumns: ["id"]
-          },
-        ]
-      }
     }
     Views: {
       [_ in never]: never
