@@ -1,4 +1,3 @@
-
 import React, { createContext, useContext, useEffect, useState } from 'react';
 import { Session, User } from '@supabase/supabase-js';
 import { supabase } from '@/lib/supabase';
@@ -26,7 +25,6 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
   const [userProfile, setUserProfile] = useState<any | null>(null);
   const navigate = useNavigate();
 
-  // Helper function to fetch user data
   const fetchUserData = async (userId: string) => {
     try {
       console.log('Fetching user data for ID:', userId);
@@ -47,12 +45,10 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
   useEffect(() => {
     let authStateSubscription: { unsubscribe: () => void } | null = null;
 
-    // Initialize auth state
     const initAuth = async () => {
       try {
         setIsLoading(true);
         
-        // First set up the auth state listener
         authStateSubscription = supabase.auth.onAuthStateChange(
           async (event, currentSession) => {
             console.log('Auth state changed:', event);
@@ -60,7 +56,6 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
             setUser(currentSession?.user ?? null);
             
             if (currentSession?.user) {
-              // Use setTimeout to prevent potential deadlocks with Supabase auth
               setTimeout(() => {
                 fetchUserData(currentSession.user.id);
                 setIsLoading(false);
@@ -73,7 +68,6 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
           }
         ).data.subscription;
 
-        // Then check for existing session
         const { data } = await supabase.auth.getSession();
         setSession(data.session);
         setUser(data.session?.user ?? null);
@@ -83,7 +77,6 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
         }
       } catch (error) {
         console.error('Error initializing auth:', error);
-        // Set a default role if we can't fetch one
         setUserRole('admin');
       } finally {
         setIsLoading(false);

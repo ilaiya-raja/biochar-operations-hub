@@ -11,9 +11,21 @@ export const authService = {
       
       if (error) {
         console.error('Error fetching user role:', error);
+        // First check if we can detect a coordinator profile
+        const { data: coordinatorProfile } = await supabase
+          .from('coordinators')
+          .select('id')
+          .single();
+          
+        if (coordinatorProfile) {
+          console.log('Detected coordinator from profile, setting role as coordinator');
+          return 'coordinator';
+        }
+        
         return 'admin'; // Default role if there's an error
       }
       
+      console.log('Retrieved user role:', userRoles?.role);
       return userRoles?.role || 'admin'; // Return the role or default to admin
     } catch (error) {
       console.error('Exception fetching user role:', error);

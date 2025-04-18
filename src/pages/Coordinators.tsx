@@ -1,4 +1,3 @@
-
 import { useState, useEffect } from 'react';
 import { Plus, Pencil, Trash2, Search, Mail, Phone } from 'lucide-react';
 import { Input } from '@/components/ui/input';
@@ -72,6 +71,7 @@ const Coordinators = () => {
   const [selectedCoordinator, setSelectedCoordinator] = useState<Coordinator | null>(null);
   const [isDeleteDialogOpen, setIsDeleteDialogOpen] = useState(false);
   const [isFormDialogOpen, setIsFormDialogOpen] = useState(false);
+  const [inviteLoading, setInviteLoading] = useState(false);
 
   const form = useForm<FormValues>({
     resolver: zodResolver(formSchema),
@@ -104,26 +104,50 @@ const Coordinators = () => {
     try {
       if (selectedCoordinator) {
         await coordinatorService.updateCoordinator(selectedCoordinator.id, values);
+        toast.success('Coordinator updated successfully');
       } else {
-        await coordinatorService.createCoordinator(values);
+        const newCoordinator = await coordinatorService.createCoordinator(values);
         
-        const response = await fetch('/functions/v1/send-invite', {
-          method: 'POST',
-          headers: {
-            'Content-Type': 'application/json',
-            Authorization: `Bearer ${(await supabase.auth.getSession()).data.session?.access_token}`,
-          },
-          body: JSON.stringify({
-            email: values.email,
-            name: values.name,
-          }),
-        });
+        if (values.email) {
+          setInviteLoading(true);
+          try {
+            console.log('Sending invitation to:', values.email);
+            const session = await supabase.auth.getSession();
+            const accessToken = session.data.session?.access_token;
+            
+            if (!accessToken) {
+              throw new Error('No access token available');
+            }
+            
+            const response = await fetch('/functions/v1/send-invite', {
+              method: 'POST',
+              headers: {
+                'Content-Type': 'application/json',
+                Authorization: `Bearer ${accessToken}`,
+              },
+              body: JSON.stringify({
+                email: values.email,
+                name: values.name,
+              }),
+            });
 
-        if (!response.ok) {
-          throw new Error('Failed to send invitation');
+            const result = await response.json();
+            console.log('Invitation response:', result);
+
+            if (!response.ok) {
+              throw new Error(result.error || 'Failed to send invitation');
+            }
+
+            toast.success('Coordinator created and invitation sent');
+          } catch (error) {
+            console.error('Invitation error:', error);
+            toast.error(`Created coordinator but failed to send invitation: ${error.message}`);
+          } finally {
+            setInviteLoading(false);
+          }
+        } else {
+          toast.success('Coordinator created successfully');
         }
-
-        toast.success('Coordinator created and invitation sent');
       }
       
       fetchData();
@@ -412,11 +436,19 @@ const Coordinators = () => {
                   type="button" 
                   variant="outline" 
                   onClick={() => setIsFormDialogOpen(false)}
+                  disabled={inviteLoading}
                 >
                   Cancel
                 </Button>
-                <Button type="submit">
-                  {selectedCoordinator ? 'Update' : 'Create'}
+                <Button type="submit" disabled={inviteLoading}>
+                  {inviteLoading ? (
+                    <>
+                      <Spinner className="mr-2" size="sm" />
+                      {selectedCoordinator ? 'Updating...' : 'Creating...'}
+                    </>
+                  ) : (
+                    selectedCoordinator ? 'Update' : 'Create'
+                  )}
                 </Button>
               </DialogFooter>
             </form>
