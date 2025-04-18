@@ -27,41 +27,57 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
   const navigate = useNavigate();
 
   useEffect(() => {
-    const initAuth = async () => {
-      const { data } = await supabase.auth.getSession();
-      setSession(data.session);
-      setUser(data.session?.user ?? null);
-      
-      if (data.session?.user) {
-        const [role, profile] = await Promise.all([
-          authService.getUserRole(),
-          authService.getCurrentUserProfile()
-        ]);
-        setUserRole(role);
-        setUserProfile(profile);
-      }
-      
-      setIsLoading(false);
-    };
-
+    // Set up auth state listener FIRST
     const { data: { subscription } } = supabase.auth.onAuthStateChange(
-      async (event, session) => {
-        setSession(session);
-        setUser(session?.user ?? null);
+      async (event, currentSession) => {
+        setSession(currentSession);
+        setUser(currentSession?.user ?? null);
         
-        if (session?.user) {
+        if (currentSession?.user) {
+          // Use setTimeout to prevent potential deadlocks with Supabase auth
+          setTimeout(async () => {
+            try {
+              const [role, profile] = await Promise.all([
+                authService.getUserRole(),
+                authService.getCurrentUserProfile()
+              ]);
+              setUserRole(role);
+              setUserProfile(profile);
+              setIsLoading(false);
+            } catch (error) {
+              console.error('Error fetching user data:', error);
+              setIsLoading(false);
+            }
+          }, 0);
+        } else {
+          setUserRole(null);
+          setUserProfile(null);
+          setIsLoading(false);
+        }
+      }
+    );
+
+    // THEN check for existing session
+    const initAuth = async () => {
+      try {
+        const { data } = await supabase.auth.getSession();
+        setSession(data.session);
+        setUser(data.session?.user ?? null);
+        
+        if (data.session?.user) {
           const [role, profile] = await Promise.all([
             authService.getUserRole(),
             authService.getCurrentUserProfile()
           ]);
           setUserRole(role);
           setUserProfile(profile);
-        } else {
-          setUserRole(null);
-          setUserProfile(null);
         }
+      } catch (error) {
+        console.error('Error initializing auth:', error);
+      } finally {
+        setIsLoading(false);
       }
-    );
+    };
 
     initAuth();
 
@@ -72,30 +88,36 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
 
   const login = async (email: string, password: string) => {
     try {
+      setIsLoading(true);
       const { error } = await supabase.auth.signInWithPassword({
         email,
         password,
       });
 
       if (error) {
+        setIsLoading(false);
         return { error };
       }
 
       toast.success('Successfully logged in');
       return { error: null };
     } catch (error) {
+      setIsLoading(false);
       return { error };
     }
   };
 
   const logout = async () => {
     try {
+      setIsLoading(true);
       await supabase.auth.signOut();
       toast.success('Successfully logged out');
       navigate('/login');
     } catch (error) {
       toast.error('Error logging out');
       console.error('Error logging out:', error);
+    } finally {
+      setIsLoading(false);
     }
   };
 
