@@ -1,4 +1,3 @@
-
 import { useState, useEffect } from 'react';
 import { Plus, Pencil, Trash2, Search, Mail, Phone } from 'lucide-react';
 import { Input } from '@/components/ui/input';
@@ -132,22 +131,25 @@ const Coordinators = () => {
               }),
             });
 
-            if (!response.ok) {
-              const errorText = await response.text();
-              console.error('Error response:', errorText);
-              let errorMessage;
-              
-              try {
-                const errorData = JSON.parse(errorText);
-                errorMessage = errorData.error || 'Failed to send invitation';
-              } catch (e) {
-                errorMessage = `Failed to send invitation: ${errorText || response.statusText}`;
+            const responseText = await response.text();
+            let result;
+            
+            try {
+              // Only try to parse as JSON if there's actually content
+              if (responseText.trim()) {
+                result = JSON.parse(responseText);
+              } else {
+                throw new Error('Empty response received');
               }
-              
-              throw new Error(errorMessage);
+            } catch (parseError) {
+              console.error('Failed to parse response:', responseText);
+              throw new Error(`Invalid response format: ${responseText || 'Empty response'}`);
+            }
+
+            if (!response.ok || !result?.success) {
+              throw new Error(result?.error || `HTTP error ${response.status}: ${response.statusText}`);
             }
             
-            const result = await response.json();
             console.log('Invitation response:', result);
             toast.success('Coordinator created and invitation sent');
             
@@ -456,7 +458,7 @@ const Coordinators = () => {
                   {inviteLoading ? (
                     <>
                       <Spinner className="mr-2" size="sm" />
-                      {selectedCoordinator ? 'Updating...' : 'Creating...'}
+                      {selectedCoordinator ? 'Updating...' : 'Creating & Sending Invitation...'}
                     </>
                   ) : (
                     selectedCoordinator ? 'Update' : 'Create'
