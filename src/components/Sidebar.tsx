@@ -86,6 +86,14 @@ export const Sidebar = ({ isOpen }: SidebarProps) => {
                               ? "bg-sidebar-accent text-sidebar-accent-foreground"
                               : "text-sidebar-foreground hover:bg-sidebar-accent/50 hover:text-sidebar-accent-foreground"
                           )}
+                          onClick={(e) => {
+                            // Prevent default behavior to disable refresh
+                            e.preventDefault();
+                            // Programmatically navigate to the route
+                            window.history.pushState({}, '', child.href);
+                            // Force a re-render by dispatching a popstate event
+                            window.dispatchEvent(new PopStateEvent('popstate'));
+                          }}
                         >
                           <child.icon className="mr-3 h-5 w-5 flex-shrink-0" />
                           {child.name}
@@ -108,6 +116,14 @@ export const Sidebar = ({ isOpen }: SidebarProps) => {
                     ? "bg-sidebar-accent text-sidebar-accent-foreground"
                     : "text-sidebar-foreground hover:bg-sidebar-accent/50 hover:text-sidebar-accent-foreground"
                 )}
+                onClick={(e) => {
+                  // Prevent default behavior to disable refresh
+                  e.preventDefault();
+                  // Programmatically navigate to the route
+                  window.history.pushState({}, '', item.href);
+                  // Force a re-render by dispatching a popstate event
+                  window.dispatchEvent(new PopStateEvent('popstate'));
+                }}
               >
                 <item.icon className="mr-3 h-5 w-5 flex-shrink-0" />
                 {item.name}
