@@ -13,7 +13,6 @@ import {
   UserCog
 } from 'lucide-react';
 import { useAuth } from '@/contexts/AuthContext';
-import { useEffect } from 'react';
 
 interface SidebarProps {
   isOpen: boolean;
@@ -41,14 +40,9 @@ export const Sidebar = ({ isOpen }: SidebarProps) => {
 
   const coordinatorNavigation = [
     { name: 'Dashboard', href: '/dashboard', icon: HomeIcon },
-    { 
-      name: 'Operations', 
-      children: [
-        { name: 'Biomass Collection', href: '/biomass-collection', icon: Leaf },
-        { name: 'Pyrolysis Process', href: '/pyrolysis', icon: FlameIcon },
-        { name: 'Fertilizer Distribution', href: '/fertilizer-distribution', icon: SproutIcon },
-      ]
-    },
+    { name: 'Biomass Collection', href: '/biomass-collection', icon: Leaf },
+    { name: 'Pyrolysis Process', href: '/pyrolysis', icon: FlameIcon },
+    { name: 'Fertilizer Distribution', href: '/fertilizer-distribution', icon: SproutIcon },
   ];
 
   // Use coordinator navigation if userRole is coordinator, otherwise use admin navigation
