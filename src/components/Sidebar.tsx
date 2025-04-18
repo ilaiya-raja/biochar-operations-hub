@@ -24,10 +24,6 @@ export const Sidebar = ({ isOpen }: SidebarProps) => {
   const navigate = useNavigate();
   const { userRole, isLoading } = useAuth();
 
-  useEffect(() => {
-    console.log('Current user role in Sidebar:', userRole);
-  }, [userRole]);
-
   const adminNavigation = [
     { name: 'Dashboard', href: '/dashboard', icon: HomeIcon },
     { 
@@ -45,12 +41,17 @@ export const Sidebar = ({ isOpen }: SidebarProps) => {
 
   const coordinatorNavigation = [
     { name: 'Dashboard', href: '/dashboard', icon: HomeIcon },
-    { name: 'Biomass Collection', href: '/biomass-collection', icon: Leaf },
-    { name: 'Pyrolysis Process', href: '/pyrolysis', icon: FlameIcon },
-    { name: 'Fertilizer Distribution', href: '/fertilizer-distribution', icon: SproutIcon },
+    { 
+      name: 'Operations', 
+      children: [
+        { name: 'Biomass Collection', href: '/biomass-collection', icon: Leaf },
+        { name: 'Pyrolysis Process', href: '/pyrolysis', icon: FlameIcon },
+        { name: 'Fertilizer Distribution', href: '/fertilizer-distribution', icon: SproutIcon },
+      ]
+    },
   ];
 
-  // Default to admin navigation unless explicitly set to coordinator
+  // Use coordinator navigation if userRole is coordinator, otherwise use admin navigation
   const navigation = userRole === 'coordinator' ? coordinatorNavigation : adminNavigation;
   
   const handleNavigation = (path: string) => {
