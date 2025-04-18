@@ -1,3 +1,4 @@
+
 import { useState, useEffect } from 'react';
 import { Plus, Pencil, Trash2, Search, Mail, Phone } from 'lucide-react';
 import { Input } from '@/components/ui/input';
@@ -147,7 +148,7 @@ const Coordinators = () => {
             }
             
             console.log('Invitation response:', result);
-            toast.success('Coordinator created and invitation sent');
+            toast.success('Coordinator created and invitation sent via magic link');
             
           } catch (error) {
             console.error('Invitation error:', error);
