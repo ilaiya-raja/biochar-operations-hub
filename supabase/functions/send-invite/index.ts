@@ -1,7 +1,7 @@
 
 import { serve } from 'https://deno.land/std@0.190.0/http/server.ts';
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2.39.7';
-import { Resend } from 'npm:resend@2.0.0';
+import { Resend } from "npm:resend@2.0.0";
 
 const resend = new Resend(Deno.env.get('RESEND_API_KEY'));
 const supabaseUrl = Deno.env.get('SUPABASE_URL') ?? '';
@@ -73,61 +73,26 @@ serve(async (req) => {
     }
     
     console.log(`Processing invitation for: ${email}, name: ${name}`);
-    
-    // Create auth user with random password
-    const tempPassword = Math.random().toString(36).slice(-8);
-    console.log('Creating user in auth system...');
-    const { data: authUser, error: createError } = await supabase.auth.admin.createUser({
-      email,
-      password: tempPassword,
-      email_confirm: true,
-    });
 
-    if (createError) {
-      console.error('Error creating user:', createError);
-      return new Response(
-        JSON.stringify({ 
-          success: false, 
-          error: `Failed to create user: ${createError.message}` 
-        }), 
-        { 
-          headers: { ...corsHeaders, 'Content-Type': 'application/json' },
-          status: 500 
+    // Generate magic link
+    console.log('Generating magic link...');
+    const { data: magicLinkData, error: magicLinkError } = await supabase.auth.admin.generateLink({
+      type: 'magiclink',
+      email: email,
+      options: {
+        data: {
+          name: name,
+          role: 'coordinator'
         }
-      );
-    }
-    
-    console.log('User created successfully:', authUser.user.id);
-    
-    // Add user to user_roles table with coordinator role
-    if (authUser.user) {
-      console.log('Setting coordinator role for user...');
-      const { error: roleError } = await supabase
-        .from('user_roles')
-        .insert([{ user_id: authUser.user.id, role: 'coordinator' }]);
-        
-      if (roleError) {
-        console.error('Error setting user role:', roleError);
-        // Continue execution, we'll try to send the invitation regardless
-        console.log('Will continue without role assignment for now');
-      } else {
-        console.log('Coordinator role set successfully');
       }
-    }
-
-    // Generate password reset link
-    console.log('Generating password reset link...');
-    const { data: resetData, error: resetError } = await supabase.auth.admin.generateLink({
-      type: 'recovery',
-      email,
     });
 
-    if (resetError) {
-      console.error('Error generating reset link:', resetError);
+    if (magicLinkError) {
+      console.error('Error generating magic link:', magicLinkError);
       return new Response(
         JSON.stringify({ 
           success: false, 
-          error: `Failed to generate password reset link: ${resetError.message}` 
+          error: `Failed to generate magic link: ${magicLinkError.message}` 
         }), 
         { 
           headers: { ...corsHeaders, 'Content-Type': 'application/json' },
@@ -136,15 +101,15 @@ serve(async (req) => {
       );
     }
     
-    console.log('Reset link generated successfully');
-    const resetLink = resetData?.properties?.action_link;
+    console.log('Magic link generated successfully');
+    const magicLink = magicLinkData?.properties?.action_link;
     
-    if (!resetLink) {
-      console.error('Reset link was not generated');
+    if (!magicLink) {
+      console.error('Magic link was not generated');
       return new Response(
         JSON.stringify({ 
           success: false, 
-          error: 'Reset link was not generated' 
+          error: 'Magic link was not generated' 
         }), 
         { 
           headers: { ...corsHeaders, 'Content-Type': 'application/json' },
@@ -153,7 +118,7 @@ serve(async (req) => {
       );
     }
 
-    // Send invitation email with reset link
+    // Send invitation email with magic link
     console.log('Sending invitation email via Resend...');
     
     let emailResult;
@@ -165,16 +130,16 @@ serve(async (req) => {
         html: `
           <h1>Welcome to Biochar Operations Hub</h1>
           <p>Hello ${name},</p>
-          <p>You have been invited to join Biochar Operations Hub as a coordinator. To get started, please set up your password by clicking the link below:</p>
-          <p><a href="${resetLink}">Set Up Your Password</a></p>
-          <p>After setting your password, you'll have access to:</p>
+          <p>You have been invited to join Biochar Operations Hub as a coordinator. Click the magic link below to sign in instantly:</p>
+          <p><a href="${magicLink}">Sign In to Biochar Operations Hub</a></p>
+          <p>After signing in, you'll have access to:</p>
           <ul>
             <li>Manage biomass collections</li>
             <li>Monitor pyrolysis processes</li>
             <li>Track fertilizer distributions</li>
             <li>View analytics and reports</li>
           </ul>
-          <p>This link will expire in 24 hours for security reasons.</p>
+          <p>This magic link will expire in 24 hours for security reasons.</p>
           <p>Best regards,<br>Biochar Operations Team</p>
         `,
       });
