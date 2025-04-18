@@ -148,7 +148,7 @@ const Coordinators = () => {
             }
             
             console.log('Invitation response:', result);
-            toast.success('Coordinator created and invitation sent via magic link');
+            toast.success('Coordinator created and invitation sent successfully');
             
           } catch (error) {
             console.error('Invitation error:', error);

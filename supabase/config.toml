@@ -60,8 +60,9 @@ double_confirm_changes = true
 enable_confirmations = false
 
 # Use an auth hook for processing auth events
-[functions.auth_hooks]
-verify_jwt = false
+[auth.hooks]
+enabled = true
+uri = "http://host.docker.internal:54321/functions/v1/auth_hooks"
 
 [auth.sms]
 # Allow/disallow new user signups via SMS to your project.
@@ -82,8 +83,3 @@ verify_jwt = false
 [observability]
 # Port to use for the Observability REST API.
 port = 54327
-
-# Use an auth hook for processing auth events
-[auth.hooks]
-enabled = true
-uri = "http://host.docker.internal:54321/functions/v1/auth_hooks"

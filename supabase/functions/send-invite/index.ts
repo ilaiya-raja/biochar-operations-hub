@@ -57,25 +57,78 @@ serve(async (req) => {
     
     console.log(`Processing invitation for: ${email}, name: ${name}`);
 
-    // Generate magic link
-    console.log('Generating magic link...');
-    const { data: magicLinkData, error: magicLinkError } = await supabase.auth.admin.generateLink({
-      type: 'magiclink',
-      email: email,
-      options: {
+    try {
+      // Check if the user already exists
+      const { data: existingUser, error: userLookupError } = await supabase.auth.admin.listUsers({
+        filter: {
+          email: email
+        }
+      });
+      
+      if (userLookupError) {
+        console.error('Error checking for existing user:', userLookupError);
+      }
+      
+      let existingUserId = null;
+      if (existingUser && existingUser.users && existingUser.users.length > 0) {
+        existingUserId = existingUser.users[0].id;
+        console.log('User already exists with ID:', existingUserId);
+        
+        // Update the user's metadata to include role
+        const { error: updateError } = await supabase.auth.admin.updateUserById(
+          existingUserId,
+          { user_metadata: { name, role: 'coordinator' } }
+        );
+        
+        if (updateError) {
+          console.error('Error updating existing user metadata:', updateError);
+        } else {
+          console.log('Updated existing user metadata with coordinator role');
+        }
+      }
+      
+      // Create an invitation with role in metadata
+      console.log('Sending email invite with coordinator role in metadata');
+      const { data: inviteData, error: inviteError } = await supabase.auth.admin.inviteUserByEmail(email, {
         data: {
           name: name,
           role: 'coordinator'
-        }
+        },
+        redirectTo: `${supabaseUrl.replace('.co', '.co/auth/callback')}`
+      });
+      
+      if (inviteError) {
+        console.error('Error sending invite:', inviteError);
+        return new Response(
+          JSON.stringify({ 
+            success: false, 
+            error: `Failed to send invitation: ${inviteError.message}` 
+          }), 
+          { 
+            headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+            status: 500 
+          }
+        );
       }
-    });
-
-    if (magicLinkError) {
-      console.error('Error generating magic link:', magicLinkError);
+      
+      console.log('Invitation sent successfully:', inviteData);
+      
+      return new Response(
+        JSON.stringify({ 
+          success: true, 
+          message: 'Invitation sent successfully' 
+        }), 
+        {
+          headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+          status: 200,
+        }
+      );
+    } catch (inviteError) {
+      console.error('Error in invitation process:', inviteError);
       return new Response(
         JSON.stringify({ 
           success: false, 
-          error: `Failed to generate magic link: ${magicLinkError.message}` 
+          error: `Invitation error: ${inviteError.message}` 
         }), 
         { 
           headers: { ...corsHeaders, 'Content-Type': 'application/json' },
@@ -83,64 +136,6 @@ serve(async (req) => {
         }
       );
     }
-    
-    console.log('Magic link generated successfully');
-    const magicLink = magicLinkData?.properties?.action_link;
-    
-    if (!magicLink) {
-      console.error('Magic link was not generated');
-      return new Response(
-        JSON.stringify({ 
-          success: false, 
-          error: 'Magic link was not generated' 
-        }), 
-        { 
-          headers: { ...corsHeaders, 'Content-Type': 'application/json' },
-          status: 500 
-        }
-      );
-    }
-
-    // Create entry in user_roles table when the user first signs in
-    // This is done via a trigger function that should be added to the database
-    
-    // Add a trigger that will create a user_role entry when the user signs in for the first time
-    // The trigger will run the function defined in user_roles_setup.sql
-    
-    // Force the email to be sent (in case the automatic send isn't working)
-    console.log('Sending magic link email directly...');
-    const { error: sendEmailError } = await supabase.auth.admin.sendEmailInvite({
-      email: email,
-      data: {
-        name: name,
-        role: 'coordinator'
-      }
-    });
-    
-    if (sendEmailError) {
-      console.error('Error sending email invite:', sendEmailError);
-      return new Response(
-        JSON.stringify({ 
-          success: false, 
-          error: `Failed to send email invite: ${sendEmailError.message}` 
-        }), 
-        { 
-          headers: { ...corsHeaders, 'Content-Type': 'application/json' },
-          status: 500 
-        }
-      );
-    }
-
-    return new Response(
-      JSON.stringify({ 
-        success: true, 
-        message: 'Invitation sent successfully via Supabase magic link'
-      }), 
-      {
-        headers: { ...corsHeaders, 'Content-Type': 'application/json' },
-        status: 200,
-      }
-    );
   } catch (error) {
     console.error('Error in send-invite function:', error);
     return new Response(
