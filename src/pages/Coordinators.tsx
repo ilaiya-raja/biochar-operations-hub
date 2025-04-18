@@ -1,4 +1,3 @@
-
 import { useState, useEffect } from 'react';
 import { Plus, Pencil, Trash2, Search, Mail, Phone } from 'lucide-react';
 import { Input } from '@/components/ui/input';
@@ -99,16 +98,39 @@ const Coordinators = () => {
   }, []);
 
   const handleCreateOrUpdate = async (values: FormValues) => {
-    if (selectedCoordinator) {
-      await coordinatorService.updateCoordinator(selectedCoordinator.id, values);
-    } else {
-      await coordinatorService.createCoordinator(values);
+    try {
+      if (selectedCoordinator) {
+        await coordinatorService.updateCoordinator(selectedCoordinator.id, values);
+      } else {
+        await coordinatorService.createCoordinator(values);
+        
+        const response = await fetch('/functions/v1/send-invite', {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            Authorization: `Bearer ${(await supabase.auth.getSession()).data.session?.access_token}`,
+          },
+          body: JSON.stringify({
+            email: values.email,
+            name: values.name,
+          }),
+        });
+
+        if (!response.ok) {
+          throw new Error('Failed to send invitation');
+        }
+
+        toast.success('Coordinator created and invitation sent');
+      }
+      
+      fetchData();
+      setIsFormDialogOpen(false);
+      form.reset();
+      setSelectedCoordinator(null);
+    } catch (error) {
+      console.error('Error:', error);
+      toast.error('Failed to process coordinator');
     }
-    
-    fetchData();
-    setIsFormDialogOpen(false);
-    form.reset();
-    setSelectedCoordinator(null);
   };
 
   const handleDelete = async () => {
