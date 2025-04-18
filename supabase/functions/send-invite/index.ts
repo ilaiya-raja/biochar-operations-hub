@@ -159,22 +159,54 @@ serve(async (req) => {
         );
       }
       
-      // User doesn't exist, send an invitation
-      console.log('Sending email invite with coordinator role in metadata');
-      const { data: inviteData, error: inviteError } = await supabase.auth.admin.inviteUserByEmail(email, {
-        data: {
-          name: name,
-          role: 'coordinator'
-        },
-        redirectTo: `${supabaseUrl.replace('.co', '.co/auth/callback')}`
+      // User doesn't exist, send an invitation with a direct URL
+      console.log('User does not exist. Sending invitation email...');
+      
+      // Format the redirect URL to match what Supabase expects
+      const redirectUrl = `${supabaseUrl.replace('.co', '.co/auth/callback')}`;
+      
+      // Use sendEmailInvite which is specifically designed for sending invites
+      const { data: inviteData, error: inviteError } = await supabase.auth.admin.generateLink({
+        type: 'invite',
+        email: email,
+        options: {
+          data: {
+            name: name,
+            role: 'coordinator'
+          },
+          redirectTo: redirectUrl
+        }
       });
       
       if (inviteError) {
-        console.error('Error sending invite:', inviteError);
+        console.error('Error generating invite link:', inviteError);
         return new Response(
           JSON.stringify({ 
             success: false, 
-            error: `Failed to send invitation: ${inviteError.message}` 
+            error: `Failed to generate invitation link: ${inviteError.message}` 
+          }), 
+          { 
+            headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+            status: 500 
+          }
+        );
+      }
+      
+      // Now actually send the invite email
+      const { error: emailError } = await supabase.auth.admin.sendEmailInvite({
+        email: email,
+        options: {
+          // Use the generated URL from the previous step
+          redirectTo: inviteData?.properties?.action_link || redirectUrl
+        }
+      });
+      
+      if (emailError) {
+        console.error('Error sending invitation email:', emailError);
+        return new Response(
+          JSON.stringify({ 
+            success: false, 
+            error: `Failed to send invitation email: ${emailError.message}` 
           }), 
           { 
             headers: { ...corsHeaders, 'Content-Type': 'application/json' },
