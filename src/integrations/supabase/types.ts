@@ -359,6 +359,45 @@ export type Database = {
           },
         ]
       }
+      fertilizers: {
+        Row: {
+          batch_number: string | null
+          created_at: string
+          id: string
+          name: string
+          produced_date: string | null
+          quantity: number
+          quantity_unit: string
+          status: string | null
+          type: string
+          updated_at: string
+        }
+        Insert: {
+          batch_number?: string | null
+          created_at?: string
+          id?: string
+          name: string
+          produced_date?: string | null
+          quantity: number
+          quantity_unit: string
+          status?: string | null
+          type: string
+          updated_at?: string
+        }
+        Update: {
+          batch_number?: string | null
+          created_at?: string
+          id?: string
+          name?: string
+          produced_date?: string | null
+          quantity?: number
+          quantity_unit?: string
+          status?: string | null
+          type?: string
+          updated_at?: string
+        }
+        Relationships: []
+      }
       kilns: {
         Row: {
           capacity: number | null
