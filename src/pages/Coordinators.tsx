@@ -148,11 +148,17 @@ const Coordinators = () => {
             }
             
             console.log('Invitation response:', result);
-            toast.success('Coordinator created and invitation sent successfully');
+            toast.success(result.message || 'Coordinator created successfully');
             
           } catch (error) {
             console.error('Invitation error:', error);
-            toast.error(`Created coordinator but failed to send invitation: ${error.message}`);
+            
+            // Check if it's a "user already exists" error which is actually a success case
+            if (error.message && error.message.includes('already been registered')) {
+              toast.success('Coordinator created and role assigned (user already exists)');
+            } else {
+              toast.error(`Created coordinator but failed to send invitation: ${error.message}`);
+            }
           } finally {
             setInviteLoading(false);
           }

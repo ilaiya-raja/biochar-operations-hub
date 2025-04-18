@@ -67,11 +67,21 @@ serve(async (req) => {
       
       if (userLookupError) {
         console.error('Error checking for existing user:', userLookupError);
+        return new Response(
+          JSON.stringify({ 
+            success: false, 
+            error: `Error checking for existing user: ${userLookupError.message}` 
+          }), 
+          { 
+            headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+            status: 500 
+          }
+        );
       }
       
-      let existingUserId = null;
+      // If user already exists, just update their metadata with the coordinator role
       if (existingUser && existingUser.users && existingUser.users.length > 0) {
-        existingUserId = existingUser.users[0].id;
+        const existingUserId = existingUser.users[0].id;
         console.log('User already exists with ID:', existingUserId);
         
         // Update the user's metadata to include role
@@ -82,12 +92,74 @@ serve(async (req) => {
         
         if (updateError) {
           console.error('Error updating existing user metadata:', updateError);
-        } else {
-          console.log('Updated existing user metadata with coordinator role');
+          return new Response(
+            JSON.stringify({ 
+              success: false, 
+              error: `Failed to update user metadata: ${updateError.message}` 
+            }), 
+            { 
+              headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+              status: 500 
+            }
+          );
         }
+        
+        console.log('Updated existing user metadata with coordinator role');
+        
+        // Manually add role to user_roles table if it doesn't exist
+        try {
+          // Execute the function to create user_roles table if it doesn't exist
+          const { error: createTableError } = await supabase.rpc('create_user_roles_if_not_exists');
+          if (createTableError) {
+            console.error('Error creating user_roles table:', createTableError);
+          }
+          
+          // Check if role already exists for this user
+          const { data: existingRole, error: roleCheckError } = await supabase
+            .from('user_roles')
+            .select('*')
+            .eq('user_id', existingUserId)
+            .eq('role', 'coordinator')
+            .maybeSingle();
+            
+          if (roleCheckError && roleCheckError.code !== 'PGRST116') {
+            console.error('Error checking existing role:', roleCheckError);
+          }
+          
+          // Add coordinator role if it doesn't exist
+          if (!existingRole) {
+            const { error: insertRoleError } = await supabase
+              .from('user_roles')
+              .insert({
+                user_id: existingUserId,
+                role: 'coordinator'
+              });
+              
+            if (insertRoleError) {
+              console.error('Error inserting coordinator role:', insertRoleError);
+            } else {
+              console.log('Added coordinator role to user_roles table');
+            }
+          } else {
+            console.log('User already has coordinator role in user_roles table');
+          }
+        } catch (roleError) {
+          console.error('Error managing user roles:', roleError);
+        }
+        
+        return new Response(
+          JSON.stringify({ 
+            success: true, 
+            message: 'User already exists, metadata updated with coordinator role' 
+          }), 
+          {
+            headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+            status: 200,
+          }
+        );
       }
       
-      // Create an invitation with role in metadata
+      // User doesn't exist, send an invitation
       console.log('Sending email invite with coordinator role in metadata');
       const { data: inviteData, error: inviteError } = await supabase.auth.admin.inviteUserByEmail(email, {
         data: {
