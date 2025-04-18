@@ -1,3 +1,4 @@
+
 import { useState, useEffect } from 'react';
 import { Plus, Pencil, Trash2, Search, Mail, Phone } from 'lucide-react';
 import { Input } from '@/components/ui/input';
@@ -119,7 +120,7 @@ const Coordinators = () => {
               throw new Error('No access token available');
             }
             
-            const response = await fetch('/functions/v1/send-invite', {
+            const response = await fetch(`${window.location.origin}/functions/v1/send-invite`, {
               method: 'POST',
               headers: {
                 'Content-Type': 'application/json',
@@ -131,14 +132,25 @@ const Coordinators = () => {
               }),
             });
 
+            if (!response.ok) {
+              const errorText = await response.text();
+              console.error('Error response:', errorText);
+              let errorMessage;
+              
+              try {
+                const errorData = JSON.parse(errorText);
+                errorMessage = errorData.error || 'Failed to send invitation';
+              } catch (e) {
+                errorMessage = `Failed to send invitation: ${errorText || response.statusText}`;
+              }
+              
+              throw new Error(errorMessage);
+            }
+            
             const result = await response.json();
             console.log('Invitation response:', result);
-
-            if (!response.ok) {
-              throw new Error(result.error || 'Failed to send invitation');
-            }
-
             toast.success('Coordinator created and invitation sent');
+            
           } catch (error) {
             console.error('Invitation error:', error);
             toast.error(`Created coordinator but failed to send invitation: ${error.message}`);

@@ -49,6 +49,12 @@ serve(async (req) => {
         
       if (roleError) {
         console.error('Error setting user role:', roleError);
+        // If the table doesn't exist, we'll handle that gracefully
+        if (roleError.code === '42P01') { // PostgreSQL error code for 'relation does not exist'
+          console.log('user_roles table does not exist yet, continuing without role assignment');
+        } else {
+          throw roleError;
+        }
       } else {
         console.log('Coordinator role set successfully');
       }
@@ -67,6 +73,11 @@ serve(async (req) => {
     }
     
     console.log('Reset link generated successfully');
+    const resetLink = resetData.properties?.action_link;
+    
+    if (!resetLink) {
+      throw new Error('Reset link is undefined');
+    }
 
     // Send invitation email with reset link
     console.log('Sending invitation email...');
@@ -78,7 +89,7 @@ serve(async (req) => {
         <h1>Welcome to Biochar Operations Hub</h1>
         <p>Hello ${name},</p>
         <p>You have been invited as a coordinator. Please click the link below to set up your password:</p>
-        <p><a href="${resetData.properties?.action_link}">Set Up Your Password</a></p>
+        <p><a href="${resetLink}">Set Up Your Password</a></p>
         <p>This link will expire in 24 hours.</p>
         <p>Best regards,<br>Biochar Operations Team</p>
       `,
@@ -86,13 +97,13 @@ serve(async (req) => {
     
     console.log('Email send response:', emailResult);
 
-    return new Response(JSON.stringify({ success: true }), {
+    return new Response(JSON.stringify({ success: true, message: 'Invitation sent successfully' }), {
       headers: { ...corsHeaders, 'Content-Type': 'application/json' },
       status: 200,
     });
   } catch (error) {
     console.error('Error in send-invite function:', error);
-    return new Response(JSON.stringify({ error: error.message }), {
+    return new Response(JSON.stringify({ error: error.message || 'An unknown error occurred' }), {
       headers: { ...corsHeaders, 'Content-Type': 'application/json' },
       status: 500,
     });
