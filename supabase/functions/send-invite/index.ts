@@ -155,21 +155,26 @@ serve(async (req) => {
 
     // Send invitation email with reset link
     console.log('Sending invitation email via Resend...');
-    console.log('Email To:', email);
-    console.log('Reset Link:', resetLink);
     
     let emailResult;
     try {
       emailResult = await resend.emails.send({
         from: 'Biochar Operations <onboarding@resend.dev>',
         to: [email],
-        subject: 'Welcome to Biochar Operations Hub',
+        subject: 'Welcome to Biochar Operations Hub - Coordinator Access',
         html: `
           <h1>Welcome to Biochar Operations Hub</h1>
           <p>Hello ${name},</p>
-          <p>You have been invited as a coordinator. Please click the link below to set up your password:</p>
+          <p>You have been invited to join Biochar Operations Hub as a coordinator. To get started, please set up your password by clicking the link below:</p>
           <p><a href="${resetLink}">Set Up Your Password</a></p>
-          <p>This link will expire in 24 hours.</p>
+          <p>After setting your password, you'll have access to:</p>
+          <ul>
+            <li>Manage biomass collections</li>
+            <li>Monitor pyrolysis processes</li>
+            <li>Track fertilizer distributions</li>
+            <li>View analytics and reports</li>
+          </ul>
+          <p>This link will expire in 24 hours for security reasons.</p>
           <p>Best regards,<br>Biochar Operations Team</p>
         `,
       });
