@@ -101,9 +101,35 @@ serve(async (req) => {
       );
     }
 
-    // Note: Supabase already sends the magic link email automatically
-    // No need to use Resend or any other email provider
-    console.log('Magic link email will be sent automatically by Supabase');
+    // Create entry in user_roles table when the user first signs in
+    // This is done via a trigger function that should be added to the database
+    
+    // Add a trigger that will create a user_role entry when the user signs in for the first time
+    // The trigger will run the function defined in user_roles_setup.sql
+    
+    // Force the email to be sent (in case the automatic send isn't working)
+    console.log('Sending magic link email directly...');
+    const { error: sendEmailError } = await supabase.auth.admin.sendEmailInvite({
+      email: email,
+      data: {
+        name: name,
+        role: 'coordinator'
+      }
+    });
+    
+    if (sendEmailError) {
+      console.error('Error sending email invite:', sendEmailError);
+      return new Response(
+        JSON.stringify({ 
+          success: false, 
+          error: `Failed to send email invite: ${sendEmailError.message}` 
+        }), 
+        { 
+          headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+          status: 500 
+        }
+      );
+    }
 
     return new Response(
       JSON.stringify({ 
