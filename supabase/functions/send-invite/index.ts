@@ -159,31 +159,28 @@ serve(async (req) => {
         );
       }
       
-      // User doesn't exist, send an invitation with a direct URL
-      console.log('User does not exist. Sending invitation email...');
+      // For new users, we'll use magicLink instead of invitation
+      console.log('User does not exist, sending magic link...');
       
-      // Format the redirect URL to match what Supabase expects
-      const redirectUrl = `${supabaseUrl.replace('.co', '.co/auth/callback')}`;
-      
-      // Use sendEmailInvite which is specifically designed for sending invites
-      const { data: inviteData, error: inviteError } = await supabase.auth.admin.generateLink({
-        type: 'invite',
+      // Create a magic link for the new user with coordinator role in metadata
+      const { data: magicLinkData, error: magicLinkError } = await supabase.auth.admin.generateLink({
+        type: 'magiclink',
         email: email,
         options: {
           data: {
             name: name,
             role: 'coordinator'
           },
-          redirectTo: redirectUrl
+          redirectTo: `${supabaseUrl}/auth/v1/callback`
         }
       });
       
-      if (inviteError) {
-        console.error('Error generating invite link:', inviteError);
+      if (magicLinkError) {
+        console.error('Error generating magic link:', magicLinkError);
         return new Response(
           JSON.stringify({ 
             success: false, 
-            error: `Failed to generate invitation link: ${inviteError.message}` 
+            error: `Failed to generate magic link: ${magicLinkError.message}` 
           }), 
           { 
             headers: { ...corsHeaders, 'Content-Type': 'application/json' },
@@ -192,12 +189,15 @@ serve(async (req) => {
         );
       }
       
-      // Now actually send the invite email
-      const { error: emailError } = await supabase.auth.admin.sendEmailInvite({
-        email: email,
-        options: {
-          // Use the generated URL from the previous step
-          redirectTo: inviteData?.properties?.action_link || redirectUrl
+      console.log('Magic link generated successfully:', magicLinkData);
+      
+      // Now send the email with the magic link
+      const { error: emailError } = await supabase.auth.admin.sendInvites({
+        emails: [email],
+        redirectTo: magicLinkData?.properties?.action_link || `${supabaseUrl}/auth/v1/callback`,
+        data: {
+          name: name,
+          role: 'coordinator'
         }
       });
       
@@ -215,7 +215,7 @@ serve(async (req) => {
         );
       }
       
-      console.log('Invitation sent successfully:', inviteData);
+      console.log('Invitation sent successfully');
       
       return new Response(
         JSON.stringify({ 
