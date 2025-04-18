@@ -119,7 +119,8 @@ const Coordinators = () => {
               throw new Error('No access token available');
             }
             
-            const response = await fetch(`${window.location.origin}/functions/v1/send-invite`, {
+            // Use the full URL including the project ID for the Supabase edge function
+            const response = await fetch('https://axwhpqvnsqpdqidameqa.functions.supabase.co/send-invite', {
               method: 'POST',
               headers: {
                 'Content-Type': 'application/json',
@@ -131,23 +132,18 @@ const Coordinators = () => {
               }),
             });
 
-            const responseText = await response.text();
-            let result;
-            
-            try {
-              // Only try to parse as JSON if there's actually content
-              if (responseText.trim()) {
-                result = JSON.parse(responseText);
-              } else {
-                throw new Error('Empty response received');
-              }
-            } catch (parseError) {
-              console.error('Failed to parse response:', responseText);
-              throw new Error(`Invalid response format: ${responseText || 'Empty response'}`);
+            // First check if the response is ok before parsing JSON
+            if (!response.ok) {
+              const errorText = await response.text();
+              console.error('Error response:', errorText);
+              throw new Error(`Request failed with status ${response.status}: ${errorText || response.statusText}`);
             }
-
-            if (!response.ok || !result?.success) {
-              throw new Error(result?.error || `HTTP error ${response.status}: ${response.statusText}`);
+            
+            // Now safely parse the JSON
+            const result = await response.json();
+            
+            if (!result.success) {
+              throw new Error(result.error || 'Unknown error occurred');
             }
             
             console.log('Invitation response:', result);

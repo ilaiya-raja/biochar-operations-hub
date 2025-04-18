@@ -26,10 +26,52 @@ serve(async (req) => {
     // Verify we have a valid API key for Resend
     if (!Deno.env.get('RESEND_API_KEY')) {
       console.error('Missing RESEND_API_KEY environment variable');
-      throw new Error('Email service configuration is missing');
+      return new Response(
+        JSON.stringify({ 
+          success: false, 
+          error: 'Email service configuration is missing' 
+        }), 
+        { 
+          headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+          status: 500 
+        }
+      );
     }
 
-    const { email, name } = await req.json();
+    // Parse request body and validate required fields
+    let reqBody;
+    try {
+      reqBody = await req.json();
+    } catch (e) {
+      console.error('Error parsing request JSON:', e);
+      return new Response(
+        JSON.stringify({ 
+          success: false, 
+          error: 'Invalid request format' 
+        }), 
+        { 
+          headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+          status: 400 
+        }
+      );
+    }
+
+    const { email, name } = reqBody;
+    
+    if (!email || !name) {
+      console.error('Missing required fields:', { email, name });
+      return new Response(
+        JSON.stringify({ 
+          success: false, 
+          error: 'Missing required fields: email and name are required' 
+        }), 
+        { 
+          headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+          status: 400 
+        }
+      );
+    }
+    
     console.log(`Processing invitation for: ${email}, name: ${name}`);
     
     // Create auth user with random password
@@ -43,7 +85,16 @@ serve(async (req) => {
 
     if (createError) {
       console.error('Error creating user:', createError);
-      throw createError;
+      return new Response(
+        JSON.stringify({ 
+          success: false, 
+          error: `Failed to create user: ${createError.message}` 
+        }), 
+        { 
+          headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+          status: 500 
+        }
+      );
     }
     
     console.log('User created successfully:', authUser.user.id);
@@ -57,32 +108,8 @@ serve(async (req) => {
         
       if (roleError) {
         console.error('Error setting user role:', roleError);
-        // If the table doesn't exist, we'll create it
-        if (roleError.code === '42P01') { // PostgreSQL error code for 'relation does not exist'
-          console.log('user_roles table does not exist, attempting to create it');
-          
-          // Create user_roles table if it doesn't exist
-          const { error: createTableError } = await supabase.rpc('create_user_roles_if_not_exists');
-          
-          if (createTableError) {
-            console.error('Failed to create user_roles table:', createTableError);
-          } else {
-            console.log('Created user_roles table successfully');
-            
-            // Try inserting the role again
-            const { error: retryRoleError } = await supabase
-              .from('user_roles')
-              .insert([{ user_id: authUser.user.id, role: 'coordinator' }]);
-              
-            if (retryRoleError) {
-              console.error('Error setting user role after table creation:', retryRoleError);
-            } else {
-              console.log('Coordinator role set successfully after table creation');
-            }
-          }
-        } else {
-          console.log('Will continue without role assignment for now');
-        }
+        // Continue execution, we'll try to send the invitation regardless
+        console.log('Will continue without role assignment for now');
       } else {
         console.log('Coordinator role set successfully');
       }
@@ -97,14 +124,33 @@ serve(async (req) => {
 
     if (resetError) {
       console.error('Error generating reset link:', resetError);
-      throw resetError;
+      return new Response(
+        JSON.stringify({ 
+          success: false, 
+          error: `Failed to generate password reset link: ${resetError.message}` 
+        }), 
+        { 
+          headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+          status: 500 
+        }
+      );
     }
     
     console.log('Reset link generated successfully');
     const resetLink = resetData?.properties?.action_link;
     
     if (!resetLink) {
-      throw new Error('Reset link was not generated');
+      console.error('Reset link was not generated');
+      return new Response(
+        JSON.stringify({ 
+          success: false, 
+          error: 'Reset link was not generated' 
+        }), 
+        { 
+          headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+          status: 500 
+        }
+      );
     }
 
     // Send invitation email with reset link
@@ -112,43 +158,73 @@ serve(async (req) => {
     console.log('Email To:', email);
     console.log('Reset Link:', resetLink);
     
-    const emailResult = await resend.emails.send({
-      from: 'Biochar Operations <onboarding@resend.dev>',
-      to: [email],
-      subject: 'Welcome to Biochar Operations Hub',
-      html: `
-        <h1>Welcome to Biochar Operations Hub</h1>
-        <p>Hello ${name},</p>
-        <p>You have been invited as a coordinator. Please click the link below to set up your password:</p>
-        <p><a href="${resetLink}">Set Up Your Password</a></p>
-        <p>This link will expire in 24 hours.</p>
-        <p>Best regards,<br>Biochar Operations Team</p>
-      `,
-    });
+    let emailResult;
+    try {
+      emailResult = await resend.emails.send({
+        from: 'Biochar Operations <onboarding@resend.dev>',
+        to: [email],
+        subject: 'Welcome to Biochar Operations Hub',
+        html: `
+          <h1>Welcome to Biochar Operations Hub</h1>
+          <p>Hello ${name},</p>
+          <p>You have been invited as a coordinator. Please click the link below to set up your password:</p>
+          <p><a href="${resetLink}">Set Up Your Password</a></p>
+          <p>This link will expire in 24 hours.</p>
+          <p>Best regards,<br>Biochar Operations Team</p>
+        `,
+      });
+    } catch (emailError) {
+      console.error('Error sending email:', emailError);
+      return new Response(
+        JSON.stringify({ 
+          success: false, 
+          error: `Failed to send email: ${emailError.message || 'Unknown email error'}` 
+        }), 
+        { 
+          headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+          status: 500 
+        }
+      );
+    }
     
     console.log('Email send response:', emailResult);
     
     if (emailResult.error) {
       console.error('Resend API error:', emailResult.error);
-      throw new Error(`Failed to send email: ${emailResult.error.message}`);
+      return new Response(
+        JSON.stringify({ 
+          success: false, 
+          error: `Failed to send email: ${emailResult.error.message}` 
+        }), 
+        { 
+          headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+          status: 500 
+        }
+      );
     }
 
-    return new Response(JSON.stringify({ 
-      success: true, 
-      message: 'Invitation sent successfully',
-      emailId: emailResult.id
-    }), {
-      headers: { ...corsHeaders, 'Content-Type': 'application/json' },
-      status: 200,
-    });
+    return new Response(
+      JSON.stringify({ 
+        success: true, 
+        message: 'Invitation sent successfully',
+        emailId: emailResult.id
+      }), 
+      {
+        headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+        status: 200,
+      }
+    );
   } catch (error) {
     console.error('Error in send-invite function:', error);
-    return new Response(JSON.stringify({ 
-      success: false,
-      error: error.message || 'An unknown error occurred'
-    }), {
-      headers: { ...corsHeaders, 'Content-Type': 'application/json' },
-      status: 500,
-    });
+    return new Response(
+      JSON.stringify({ 
+        success: false,
+        error: error.message || 'An unknown error occurred'
+      }), 
+      {
+        headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+        status: 500,
+      }
+    );
   }
 });
