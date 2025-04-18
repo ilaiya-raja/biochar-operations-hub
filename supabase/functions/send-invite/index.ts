@@ -32,6 +32,20 @@ serve(async (req) => {
     const { email, name } = await req.json();
     console.log(`Processing invitation for: ${email}, name: ${name}`);
     
+    if (!email || !name) {
+      console.error('Missing required fields: email and name are required');
+      return new Response(
+        JSON.stringify({ 
+          success: false, 
+          error: 'Missing required fields: email and name are required'
+        }),
+        { 
+          headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+          status: 400 
+        }
+      );
+    }
+    
     // Create auth user with random password
     const tempPassword = Math.random().toString(36).slice(-8);
     console.log('Creating user in auth system...');
@@ -43,48 +57,50 @@ serve(async (req) => {
 
     if (createError) {
       console.error('Error creating user:', createError);
-      throw createError;
+      return new Response(
+        JSON.stringify({ 
+          success: false, 
+          error: `Failed to create user: ${createError.message}` 
+        }),
+        { 
+          headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+          status: 500 
+        }
+      );
     }
     
     console.log('User created successfully:', authUser.user.id);
     
-    // Add user to user_roles table with coordinator role
+    // Create user_roles table if it doesn't exist and set coordinator role
     if (authUser.user) {
-      console.log('Setting coordinator role for user...');
-      const { error: roleError } = await supabase
-        .from('user_roles')
-        .insert([{ user_id: authUser.user.id, role: 'coordinator' }]);
+      // First try to create the table if it doesn't exist
+      try {
+        console.log('Ensuring user_roles table exists...');
+        const { error: createTableError } = await supabase.rpc('create_user_roles_if_not_exists');
         
-      if (roleError) {
-        console.error('Error setting user role:', roleError);
-        // If the table doesn't exist, we'll create it
-        if (roleError.code === '42P01') { // PostgreSQL error code for 'relation does not exist'
-          console.log('user_roles table does not exist, attempting to create it');
-          
-          // Create user_roles table if it doesn't exist
-          const { error: createTableError } = await supabase.rpc('create_user_roles_if_not_exists');
-          
-          if (createTableError) {
-            console.error('Failed to create user_roles table:', createTableError);
-          } else {
-            console.log('Created user_roles table successfully');
-            
-            // Try inserting the role again
-            const { error: retryRoleError } = await supabase
-              .from('user_roles')
-              .insert([{ user_id: authUser.user.id, role: 'coordinator' }]);
-              
-            if (retryRoleError) {
-              console.error('Error setting user role after table creation:', retryRoleError);
-            } else {
-              console.log('Coordinator role set successfully after table creation');
-            }
-          }
+        if (createTableError) {
+          console.error('Error creating user_roles table:', createTableError);
         } else {
-          console.log('Will continue without role assignment for now');
+          console.log('User roles table check completed');
         }
-      } else {
-        console.log('Coordinator role set successfully');
+      } catch (error) {
+        console.error('Exception during user_roles table check:', error);
+      }
+      
+      // Now try to insert the role
+      try {
+        console.log('Setting coordinator role for user...');
+        const { error: roleError } = await supabase
+          .from('user_roles')
+          .insert([{ user_id: authUser.user.id, role: 'coordinator' }]);
+          
+        if (roleError) {
+          console.error('Error setting user role:', roleError);
+        } else {
+          console.log('Coordinator role set successfully');
+        }
+      } catch (error) {
+        console.error('Exception during role assignment:', error);
       }
     }
 
@@ -97,14 +113,32 @@ serve(async (req) => {
 
     if (resetError) {
       console.error('Error generating reset link:', resetError);
-      throw resetError;
+      return new Response(
+        JSON.stringify({ 
+          success: false, 
+          error: `Failed to generate reset link: ${resetError.message}` 
+        }),
+        { 
+          headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+          status: 500 
+        }
+      );
     }
     
     console.log('Reset link generated successfully');
     const resetLink = resetData?.properties?.action_link;
     
     if (!resetLink) {
-      throw new Error('Reset link was not generated');
+      return new Response(
+        JSON.stringify({ 
+          success: false,
+          error: 'Reset link was not generated' 
+        }),
+        { 
+          headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+          status: 500 
+        }
+      );
     }
 
     // Send invitation email with reset link
@@ -112,43 +146,72 @@ serve(async (req) => {
     console.log('Email To:', email);
     console.log('Reset Link:', resetLink);
     
-    const emailResult = await resend.emails.send({
-      from: 'Biochar Operations <onboarding@resend.dev>',
-      to: [email],
-      subject: 'Welcome to Biochar Operations Hub',
-      html: `
-        <h1>Welcome to Biochar Operations Hub</h1>
-        <p>Hello ${name},</p>
-        <p>You have been invited as a coordinator. Please click the link below to set up your password:</p>
-        <p><a href="${resetLink}">Set Up Your Password</a></p>
-        <p>This link will expire in 24 hours.</p>
-        <p>Best regards,<br>Biochar Operations Team</p>
-      `,
-    });
-    
-    console.log('Email send response:', emailResult);
-    
-    if (emailResult.error) {
-      console.error('Resend API error:', emailResult.error);
-      throw new Error(`Failed to send email: ${emailResult.error.message}`);
+    try {
+      const emailResult = await resend.emails.send({
+        from: 'Biochar Operations <onboarding@resend.dev>',
+        to: [email],
+        subject: 'Welcome to Biochar Operations Hub',
+        html: `
+          <h1>Welcome to Biochar Operations Hub</h1>
+          <p>Hello ${name},</p>
+          <p>You have been invited as a coordinator. Please click the link below to set up your password:</p>
+          <p><a href="${resetLink}">Set Up Your Password</a></p>
+          <p>This link will expire in 24 hours.</p>
+          <p>Best regards,<br>Biochar Operations Team</p>
+        `,
+      });
+      
+      console.log('Email send response:', emailResult);
+      
+      if (emailResult.error) {
+        console.error('Resend API error:', emailResult.error);
+        return new Response(
+          JSON.stringify({ 
+            success: false, 
+            error: `Failed to send email: ${emailResult.error.message}` 
+          }),
+          { 
+            headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+            status: 500 
+          }
+        );
+      }
+      
+      return new Response(
+        JSON.stringify({ 
+          success: true, 
+          message: 'Invitation sent successfully',
+          emailId: emailResult.id
+        }), 
+        {
+          headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+          status: 200,
+        }
+      );
+    } catch (emailError) {
+      console.error('Exception sending email:', emailError);
+      return new Response(
+        JSON.stringify({ 
+          success: false, 
+          error: `Email sending failed: ${emailError.message}` 
+        }),
+        { 
+          headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+          status: 500 
+        }
+      );
     }
-
-    return new Response(JSON.stringify({ 
-      success: true, 
-      message: 'Invitation sent successfully',
-      emailId: emailResult.id
-    }), {
-      headers: { ...corsHeaders, 'Content-Type': 'application/json' },
-      status: 200,
-    });
   } catch (error) {
     console.error('Error in send-invite function:', error);
-    return new Response(JSON.stringify({ 
-      success: false,
-      error: error.message || 'An unknown error occurred'
-    }), {
-      headers: { ...corsHeaders, 'Content-Type': 'application/json' },
-      status: 500,
-    });
+    return new Response(
+      JSON.stringify({ 
+        success: false,
+        error: error.message || 'An unknown error occurred'
+      }), 
+      {
+        headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+        status: 500,
+      }
+    );
   }
 });

@@ -1,3 +1,4 @@
+
 import { useState, useEffect } from 'react';
 import { Plus, Pencil, Trash2, Search, Mail, Phone } from 'lucide-react';
 import { Input } from '@/components/ui/input';
@@ -119,7 +120,10 @@ const Coordinators = () => {
               throw new Error('No access token available');
             }
             
-            const response = await fetch(`${window.location.origin}/functions/v1/send-invite`, {
+            // Make sure to use the fully qualified URL
+            const functionUrl = 'https://axwhpqvnsqpdqidameqa.functions.supabase.co/send-invite';
+            
+            const response = await fetch(functionUrl, {
               method: 'POST',
               headers: {
                 'Content-Type': 'application/json',
@@ -131,23 +135,18 @@ const Coordinators = () => {
               }),
             });
 
-            const responseText = await response.text();
-            let result;
-            
-            try {
-              // Only try to parse as JSON if there's actually content
-              if (responseText.trim()) {
-                result = JSON.parse(responseText);
-              } else {
-                throw new Error('Empty response received');
-              }
-            } catch (parseError) {
-              console.error('Failed to parse response:', responseText);
-              throw new Error(`Invalid response format: ${responseText || 'Empty response'}`);
+            // First, check if response is ok
+            if (!response.ok) {
+              const errorText = await response.text();
+              console.error('Error response:', response.status, errorText);
+              throw new Error(`HTTP error ${response.status}: ${errorText || response.statusText}`);
             }
-
-            if (!response.ok || !result?.success) {
-              throw new Error(result?.error || `HTTP error ${response.status}: ${response.statusText}`);
+            
+            // Then try to parse JSON
+            const result = await response.json();
+            
+            if (!result?.success) {
+              throw new Error(result?.error || 'Unknown error occurred');
             }
             
             console.log('Invitation response:', result);

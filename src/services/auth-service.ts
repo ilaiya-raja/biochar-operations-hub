@@ -17,19 +17,51 @@ export const authService = {
         // If user_roles table doesn't exist or no role found,
         // Check if we can detect a coordinator profile
         console.log('Checking for coordinator profile...');
-        const { data: coordinatorData, error: coordError } = await supabase
-          .from('coordinators')
-          .select('id')
-          .eq('user_id', (await supabase.auth.getUser()).data.user?.id || '')
-          .maybeSingle();
-          
-        if (coordError) {
-          console.error('Error checking coordinator profile:', coordError);
+        
+        // Try to get the current user's ID first
+        const { data: userData } = await supabase.auth.getUser();
+        const userId = userData?.user?.id;
+        
+        if (!userId) {
+          console.log('No user ID found, defaulting to admin');
+          return 'admin';
         }
         
-        if (coordinatorData) {
-          console.log('Detected coordinator from profile, setting role as coordinator');
-          return 'coordinator';
+        // First try to find by user_id if the column exists
+        try {
+          const { data: coordinatorData, error: coordError } = await supabase
+            .from('coordinators')
+            .select('id, email')
+            .eq('user_id', userId)
+            .maybeSingle();
+            
+          if (!coordError && coordinatorData) {
+            console.log('Detected coordinator from profile with user_id, setting role as coordinator');
+            return 'coordinator';
+          }
+        } catch (e) {
+          console.log('Coordinator lookup by user_id failed, likely column does not exist', e);
+        }
+        
+        // If that fails, try to match by email
+        try {
+          // Get user email
+          const userEmail = userData?.user?.email;
+          
+          if (userEmail) {
+            const { data: coordinatorByEmail, error: emailError } = await supabase
+              .from('coordinators')
+              .select('id')
+              .eq('email', userEmail)
+              .maybeSingle();
+              
+            if (!emailError && coordinatorByEmail) {
+              console.log('Detected coordinator from profile by email match, setting role as coordinator');
+              return 'coordinator';
+            }
+          }
+        } catch (e) {
+          console.log('Coordinator lookup by email failed', e);
         }
         
         console.log('No user role or coordinator profile found, defaulting to admin');
@@ -44,19 +76,43 @@ export const authService = {
       console.log('No role found in user_roles table, checking coordinator profiles');
       
       // If no roles in user_roles, check coordinators as fallback
-      const { data: coordinatorData, error: coordError } = await supabase
-        .from('coordinators')
-        .select('id')
-        .eq('user_id', (await supabase.auth.getUser()).data.user?.id || '')
-        .maybeSingle();
-        
-      if (coordError) {
-        console.error('Error checking coordinator profile (fallback):', coordError);
+      const { data: userData } = await supabase.auth.getUser();
+      const userId = userData?.user?.id;
+      const userEmail = userData?.user?.email;
+      
+      if (!userId) {
+        console.log('No user ID found, defaulting to admin');
+        return 'admin';
       }
       
-      if (coordinatorData) {
-        console.log('Detected coordinator from profile (fallback), setting role as coordinator');
-        return 'coordinator';
+      // Try by user_id first if column exists
+      try {
+        const { data: coordinatorData, error: coordError } = await supabase
+          .from('coordinators')
+          .select('id')
+          .eq('user_id', userId)
+          .maybeSingle();
+          
+        if (!coordError && coordinatorData) {
+          console.log('Detected coordinator from profile by user_id (fallback), setting role as coordinator');
+          return 'coordinator';
+        }
+      } catch (e) {
+        console.log('Coordinator lookup by user_id failed, likely column does not exist', e);
+      }
+      
+      // Try by email as fallback
+      if (userEmail) {
+        const { data: coordinatorByEmail, error: emailError } = await supabase
+          .from('coordinators')
+          .select('id')
+          .eq('email', userEmail)
+          .maybeSingle();
+          
+        if (!emailError && coordinatorByEmail) {
+          console.log('Detected coordinator from profile by email (fallback), setting role as coordinator');
+          return 'coordinator';
+        }
       }
       
       console.log('No role found, defaulting to admin');
@@ -69,7 +125,8 @@ export const authService = {
 
   async getCurrentUserProfile() {
     try {
-      const userId = (await supabase.auth.getUser()).data.user?.id;
+      const { data: userData } = await supabase.auth.getUser();
+      const userId = userData?.user?.id;
       
       if (!userId) {
         console.log('No user ID found, returning null profile');
@@ -90,23 +147,42 @@ export const authService = {
         
         // If no profile, check if user is a coordinator
         console.log('Checking if user is a coordinator...');
-        const { data: coordinator, error: coordError } = await supabase
-          .from('coordinators')
-          .select('*')
-          .eq('user_id', userId)
-          .maybeSingle();
-          
-        if (coordError) {
-          console.error('Error checking coordinator profile:', coordError);
-          return null;
+        
+        // First try by user_id if column exists
+        try {
+          const { data: coordinator, error: coordError } = await supabase
+            .from('coordinators')
+            .select('*')
+            .eq('user_id', userId)
+            .maybeSingle();
+            
+          if (!coordError && coordinator) {
+            console.log('Coordinator profile found by user_id:', coordinator);
+            return { 
+              ...coordinator,
+              role: 'coordinator'
+            };
+          }
+        } catch (e) {
+          console.log('Coordinator lookup by user_id failed, likely column does not exist', e);
         }
         
-        if (coordinator) {
-          console.log('Coordinator profile found:', coordinator);
-          return { 
-            ...coordinator,
-            role: 'coordinator'
-          };
+        // Try by email as fallback
+        const userEmail = userData?.user?.email;
+        if (userEmail) {
+          const { data: coordinatorByEmail, error: emailError } = await supabase
+            .from('coordinators')
+            .select('*')
+            .eq('email', userEmail)
+            .maybeSingle();
+            
+          if (!emailError && coordinatorByEmail) {
+            console.log('Coordinator profile found by email match:', coordinatorByEmail);
+            return { 
+              ...coordinatorByEmail,
+              role: 'coordinator'
+            };
+          }
         }
         
         console.log('No profile found, returning null');
