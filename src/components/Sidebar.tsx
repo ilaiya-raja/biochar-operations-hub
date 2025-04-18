@@ -1,5 +1,5 @@
 
-import { Link, useLocation, useNavigate } from 'react-router-dom';
+import { useNavigate, useLocation } from 'react-router-dom';
 import { cn } from '@/lib/utils';
 import { 
   BarChart3, 
@@ -13,6 +13,7 @@ import {
   UserCog
 } from 'lucide-react';
 import { useAuth } from '@/contexts/AuthContext';
+import { useEffect } from 'react';
 
 interface SidebarProps {
   isOpen: boolean;
@@ -21,7 +22,11 @@ interface SidebarProps {
 export const Sidebar = ({ isOpen }: SidebarProps) => {
   const location = useLocation();
   const navigate = useNavigate();
-  const { userRole } = useAuth();
+  const { userRole, isLoading } = useAuth();
+
+  useEffect(() => {
+    console.log('Current user role in Sidebar:', userRole);
+  }, [userRole]);
 
   const adminNavigation = [
     { name: 'Dashboard', href: '/dashboard', icon: HomeIcon },
@@ -45,15 +50,34 @@ export const Sidebar = ({ isOpen }: SidebarProps) => {
     { name: 'Fertilizer Distribution', href: '/fertilizer-distribution', icon: SproutIcon },
   ];
 
-  // Default to admin navigation if userRole is null, undefined or not 'coordinator'
+  // Default to admin navigation unless explicitly set to coordinator
   const navigation = userRole === 'coordinator' ? coordinatorNavigation : adminNavigation;
   
-  console.log('Current user role:', userRole); // Add this for debugging
-
-  const handleNavigation = (e: React.MouseEvent<HTMLAnchorElement>, path: string) => {
-    e.preventDefault();
+  const handleNavigation = (path: string) => {
     navigate(path);
   };
+
+  if (isLoading) {
+    return (
+      <aside 
+        className={cn(
+          "fixed inset-y-0 left-0 z-20 flex w-64 flex-col bg-sidebar border-r border-sidebar-border transition-transform duration-300 ease-in-out",
+          isOpen ? "translate-x-0" : "-translate-x-full",
+          "md:relative md:translate-x-0"
+        )}
+      >
+        <div className="flex h-16 items-center border-b border-sidebar-border px-6">
+          <div className="flex items-center gap-2 text-sidebar-foreground">
+            <PackageIcon className="h-6 w-6 text-sidebar-primary" />
+            <span className="text-xl font-semibold">Biochar Hub</span>
+          </div>
+        </div>
+        <div className="flex-1 overflow-y-auto py-4 flex justify-center items-center">
+          <p className="text-sidebar-foreground">Loading...</p>
+        </div>
+      </aside>
+    );
+  }
 
   return (
     <aside 
@@ -83,20 +107,19 @@ export const Sidebar = ({ isOpen }: SidebarProps) => {
                     {item.children.map((child) => {
                       const isActive = location.pathname === child.href;
                       return (
-                        <Link
+                        <button
                           key={child.name}
-                          to={child.href}
                           className={cn(
-                            "group flex items-center rounded-md px-3 py-2 text-sm font-medium",
+                            "group flex w-full items-center rounded-md px-3 py-2 text-sm font-medium",
                             isActive
                               ? "bg-sidebar-accent text-sidebar-accent-foreground"
                               : "text-sidebar-foreground hover:bg-sidebar-accent/50 hover:text-sidebar-accent-foreground"
                           )}
-                          onClick={(e) => handleNavigation(e, child.href)}
+                          onClick={() => handleNavigation(child.href)}
                         >
                           <child.icon className="mr-3 h-5 w-5 flex-shrink-0" />
                           {child.name}
-                        </Link>
+                        </button>
                       );
                     })}
                   </div>
@@ -106,20 +129,19 @@ export const Sidebar = ({ isOpen }: SidebarProps) => {
 
             const isActive = location.pathname === item.href;
             return (
-              <Link
+              <button
                 key={item.name}
-                to={item.href}
                 className={cn(
-                  "group flex items-center rounded-md px-3 py-2 text-sm font-medium",
+                  "group flex w-full items-center rounded-md px-3 py-2 text-sm font-medium",
                   isActive
                     ? "bg-sidebar-accent text-sidebar-accent-foreground"
                     : "text-sidebar-foreground hover:bg-sidebar-accent/50 hover:text-sidebar-accent-foreground"
                 )}
-                onClick={(e) => handleNavigation(e, item.href)}
+                onClick={() => handleNavigation(item.href)}
               >
                 <item.icon className="mr-3 h-5 w-5 flex-shrink-0" />
                 {item.name}
-              </Link>
+              </button>
             );
           })}
         </nav>

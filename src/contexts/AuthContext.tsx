@@ -26,54 +26,65 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
   const [userProfile, setUserProfile] = useState<any | null>(null);
   const navigate = useNavigate();
 
-  useEffect(() => {
-    // Set up auth state listener FIRST
-    const { data: { subscription } } = supabase.auth.onAuthStateChange(
-      async (event, currentSession) => {
-        setSession(currentSession);
-        setUser(currentSession?.user ?? null);
-        
-        if (currentSession?.user) {
-          // Use setTimeout to prevent potential deadlocks with Supabase auth
-          setTimeout(async () => {
-            try {
-              const [role, profile] = await Promise.all([
-                authService.getUserRole(),
-                authService.getCurrentUserProfile()
-              ]);
-              setUserRole(role);
-              setUserProfile(profile);
-              setIsLoading(false);
-            } catch (error) {
-              console.error('Error fetching user data:', error);
-              setIsLoading(false);
-            }
-          }, 0);
-        } else {
-          setUserRole(null);
-          setUserProfile(null);
-          setIsLoading(false);
-        }
-      }
-    );
+  // Helper function to fetch user data
+  const fetchUserData = async (userId: string) => {
+    try {
+      console.log('Fetching user data for ID:', userId);
+      const [role, profile] = await Promise.all([
+        authService.getUserRole(),
+        authService.getCurrentUserProfile()
+      ]);
+      console.log('Fetched user role:', role);
+      setUserRole(role || 'admin'); // Default to admin if no role found
+      setUserProfile(profile);
+    } catch (error) {
+      console.error('Error fetching user data:', error);
+      // Set a default role if we can't fetch one
+      setUserRole('admin');
+    }
+  };
 
-    // THEN check for existing session
+  useEffect(() => {
+    let authStateSubscription: { unsubscribe: () => void } | null = null;
+
+    // Initialize auth state
     const initAuth = async () => {
       try {
+        setIsLoading(true);
+        
+        // First set up the auth state listener
+        authStateSubscription = supabase.auth.onAuthStateChange(
+          async (event, currentSession) => {
+            console.log('Auth state changed:', event);
+            setSession(currentSession);
+            setUser(currentSession?.user ?? null);
+            
+            if (currentSession?.user) {
+              // Use setTimeout to prevent potential deadlocks with Supabase auth
+              setTimeout(() => {
+                fetchUserData(currentSession.user.id);
+                setIsLoading(false);
+              }, 0);
+            } else {
+              setUserRole(null);
+              setUserProfile(null);
+              setIsLoading(false);
+            }
+          }
+        ).data.subscription;
+
+        // Then check for existing session
         const { data } = await supabase.auth.getSession();
         setSession(data.session);
         setUser(data.session?.user ?? null);
         
         if (data.session?.user) {
-          const [role, profile] = await Promise.all([
-            authService.getUserRole(),
-            authService.getCurrentUserProfile()
-          ]);
-          setUserRole(role);
-          setUserProfile(profile);
+          await fetchUserData(data.session.user.id);
         }
       } catch (error) {
         console.error('Error initializing auth:', error);
+        // Set a default role if we can't fetch one
+        setUserRole('admin');
       } finally {
         setIsLoading(false);
       }
@@ -82,7 +93,9 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
     initAuth();
 
     return () => {
-      subscription.unsubscribe();
+      if (authStateSubscription) {
+        authStateSubscription.unsubscribe();
+      }
     };
   }, []);
 
