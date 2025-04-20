@@ -60,6 +60,7 @@ interface Location {
 interface Coordinator {
   id: string;
   name: string;
+  location_id?: string; // Added location_id property to fix the TypeScript error
 }
 
 const Farmers = () => {
