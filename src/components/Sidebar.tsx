@@ -1,4 +1,3 @@
-
 import React from 'react';
 import { useNavigate, useLocation } from 'react-router-dom';
 import { cn } from '@/lib/utils';
@@ -8,9 +7,9 @@ import {
   FlameIcon, 
   SproutIcon,
   PackageIcon,
-  MapPin,  // Added this import
-  UserCog, // Added this import
-  Users    // Added this import
+  MapPin,
+  UserCog,
+  Users
 } from 'lucide-react';
 import { useAuth } from '@/contexts/AuthContext';
 
@@ -23,34 +22,20 @@ export const Sidebar = ({ isOpen }: SidebarProps) => {
   const navigate = useNavigate();
   const { userRole, isLoading } = useAuth();
 
-  const adminNavigation = [
+  const allNavigation = [
     { name: 'Dashboard', href: '/dashboard', icon: HomeIcon },
-    { 
-      name: 'Master Management', 
-      children: [
-        { name: 'Biomass Master', href: '/biomass', icon: Leaf },
-        { name: 'Location Master', href: '/locations', icon: MapPin },
-        { name: 'Coordinator Master', href: '/coordinators', icon: UserCog },
-        { name: 'Farmer Master', href: '/farmers', icon: Users },
-        { name: 'Kiln Master', href: '/kilns', icon: FlameIcon },
-      ]
-    },
+    { name: 'Master Management', children: [
+      { name: 'Biomass Master', href: '/biomass', icon: Leaf },
+      { name: 'Location Master', href: '/locations', icon: MapPin },
+      { name: 'Coordinator Master', href: '/coordinators', icon: UserCog },
+      { name: 'Farmer Master', href: '/farmers', icon: Users },
+      { name: 'Kiln Master', href: '/kilns', icon: FlameIcon },
+    ]},
     { name: 'Biochar Fertilizer', href: '/fertilizer', icon: SproutIcon },
-  ];
-
-  const coordinatorNavigation = [
-    { name: 'Dashboard', href: '/dashboard', icon: HomeIcon },
     { name: 'Biomass Collection', href: '/biomass-collection', icon: Leaf },
     { name: 'Pyrolysis Process', href: '/pyrolysis', icon: FlameIcon },
     { name: 'Fertilizer Distribution', href: '/fertilizer-distribution', icon: SproutIcon },
   ];
-
-  // Use coordinator navigation if userRole is coordinator, otherwise use admin navigation
-  const navigation = userRole === 'coordinator' ? coordinatorNavigation : adminNavigation;
-  
-  const handleNavigation = (path: string) => {
-    navigate(path);
-  };
 
   if (isLoading) {
     return (
@@ -91,7 +76,7 @@ export const Sidebar = ({ isOpen }: SidebarProps) => {
 
       <div className="flex-1 overflow-y-auto py-4">
         <nav className="space-y-1 px-3">
-          {navigation.map((item) => {
+          {allNavigation.map((item) => {
             if (item.children) {
               return (
                 <div key={item.name} className="space-y-1 pt-2">
@@ -110,7 +95,7 @@ export const Sidebar = ({ isOpen }: SidebarProps) => {
                               ? "bg-sidebar-accent text-sidebar-accent-foreground"
                               : "text-sidebar-foreground hover:bg-sidebar-accent/50 hover:text-sidebar-accent-foreground"
                           )}
-                          onClick={() => handleNavigation(child.href)}
+                          onClick={() => navigate(child.href)}
                         >
                           <child.icon className="mr-3 h-5 w-5 flex-shrink-0" />
                           {child.name}
@@ -132,7 +117,7 @@ export const Sidebar = ({ isOpen }: SidebarProps) => {
                     ? "bg-sidebar-accent text-sidebar-accent-foreground"
                     : "text-sidebar-foreground hover:bg-sidebar-accent/50 hover:text-sidebar-accent-foreground"
                 )}
-                onClick={() => handleNavigation(item.href)}
+                onClick={() => navigate(item.href)}
               >
                 <item.icon className="mr-3 h-5 w-5 flex-shrink-0" />
                 {item.name}
