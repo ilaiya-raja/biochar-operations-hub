@@ -1,4 +1,3 @@
-
 import { useNavigate, useLocation } from 'react-router-dom';
 import { cn } from '@/lib/utils';
 import { 
@@ -28,7 +27,7 @@ export const Sidebar = ({ isOpen }: SidebarProps) => {
     console.log('Current user role in Sidebar:', userRole);
   }, [userRole]);
 
-  const adminNavigation = [
+  const navigation = [
     { name: 'Dashboard', href: '/dashboard', icon: HomeIcon },
     { 
       name: 'Master Management', 
@@ -41,17 +40,12 @@ export const Sidebar = ({ isOpen }: SidebarProps) => {
       ]
     },
     { name: 'Biochar Fertilizer', href: '/fertilizer', icon: SproutIcon },
+    ...(userRole === 'coordinator' ? [
+      { name: 'Biomass Collection', href: '/biomass-collection', icon: Leaf },
+      { name: 'Pyrolysis Process', href: '/pyrolysis', icon: FlameIcon },
+      { name: 'Fertilizer Distribution', href: '/fertilizer-distribution', icon: SproutIcon },
+    ] : [])
   ];
-
-  const coordinatorNavigation = [
-    { name: 'Dashboard', href: '/dashboard', icon: HomeIcon },
-    { name: 'Biomass Collection', href: '/biomass-collection', icon: Leaf },
-    { name: 'Pyrolysis Process', href: '/pyrolysis', icon: FlameIcon },
-    { name: 'Fertilizer Distribution', href: '/fertilizer-distribution', icon: SproutIcon },
-  ];
-
-  // Use navigation based on role
-  const navigation = userRole === 'coordinator' ? coordinatorNavigation : adminNavigation;
   
   const handleNavigation = (path: string) => {
     navigate(path);

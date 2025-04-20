@@ -1,3 +1,4 @@
+
 import { Toaster } from "@/components/ui/toaster";
 import { Toaster as Sonner } from "@/components/ui/sonner";
 import { TooltipProvider } from "@/components/ui/tooltip";
@@ -38,8 +39,8 @@ const App = () => (
               <Route element={<DashboardLayout />}>
                 <Route path="/dashboard" element={<Dashboard />} />
                 
-                {/* Admin routes */}
-                <Route element={<PrivateRoute allowedRoles={['admin']} />}>
+                {/* Allow access to both admin and coordinator roles */}
+                <Route element={<PrivateRoute allowedRoles={['admin', 'coordinator']} />}>
                   <Route path="/farmers" element={<Farmers />} />
                   <Route path="/biomass" element={<Biomass />} />
                   <Route path="/locations" element={<Locations />} />
