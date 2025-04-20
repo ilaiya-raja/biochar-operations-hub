@@ -1,4 +1,3 @@
-
 import { toast } from "sonner";
 import { supabase } from "@/lib/supabase";
 
@@ -24,6 +23,21 @@ export interface Coordinator {
   location_id?: string;
   location?: Location;
   status: string;
+  created_at: string;
+  updated_at: string;
+}
+
+// Farmer types
+export interface Farmer {
+  id: string;
+  name: string;
+  phone: string;
+  email?: string;
+  address?: string;
+  location_id: string;
+  location?: Location;
+  coordinator_id: string;
+  coordinator?: Coordinator;
   created_at: string;
   updated_at: string;
 }
@@ -434,6 +448,86 @@ export const analyticsService = {
       return data;
     } catch (error) {
       return handleError(error, 'creating analytics data');
+    }
+  }
+};
+
+// Farmers service
+export const farmerService = {
+  async getFarmers() {
+    try {
+      const { data, error } = await supabase
+        .from('farmers')
+        .select('*, location:locations(*), coordinator:coordinators(*)')
+        .order('name');
+      
+      if (error) throw error;
+      return data;
+    } catch (error) {
+      return handleError(error, 'fetching farmers');
+    }
+  },
+  
+  async getFarmerById(id: string) {
+    try {
+      const { data, error } = await supabase
+        .from('farmers')
+        .select('*, location:locations(*), coordinator:coordinators(*)')
+        .eq('id', id)
+        .single();
+      
+      if (error) throw error;
+      return data;
+    } catch (error) {
+      return handleError(error, 'fetching farmer');
+    }
+  },
+  
+  async createFarmer(farmer: Partial<Farmer>) {
+    try {
+      const { data, error } = await supabase
+        .from('farmers')
+        .insert([farmer])
+        .select()
+        .single();
+      
+      if (error) throw error;
+      toast.success('Farmer created successfully');
+      return data;
+    } catch (error) {
+      return handleError(error, 'creating farmer');
+    }
+  },
+  
+  async updateFarmer(id: string, farmer: Partial<Farmer>) {
+    try {
+      const { data, error } = await supabase
+        .from('farmers')
+        .update(farmer)
+        .eq('id', id)
+        .select()
+        .single();
+      
+      if (error) throw error;
+      toast.success('Farmer updated successfully');
+      return data;
+    } catch (error) {
+      return handleError(error, 'updating farmer');
+    }
+  },
+  
+  async deleteFarmer(id: string) {
+    try {
+      const { error } = await supabase
+        .from('farmers')
+        .delete()
+        .eq('id', id);
+      
+      if (error) throw error;
+      toast.success('Farmer deleted successfully');
+      return true;
+    } catch (error) {
+      return handleError(error, 'deleting farmer');
     }
   }
 };
