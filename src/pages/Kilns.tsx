@@ -130,6 +130,11 @@ const Kilns = () => {
   };
 
   const handleSelectChange = (name: string, value: string) => {
+    // For coordinators, don't allow changing location_id or coordinator_id
+    if (userRole === 'coordinator' && (name === 'location_id' || name === 'coordinator_id')) {
+      return;
+    }
+    
     setFormData(prev => ({ ...prev, [name]: value }));
   };
 
@@ -419,43 +424,69 @@ const Kilns = () => {
                 <Label htmlFor="location_id" className="text-right">
                   Location
                 </Label>
-                <Select 
-                  value={formData.location_id} 
-                  onValueChange={(value) => handleSelectChange('location_id', value)}
-                  disabled={userRole === 'coordinator'}
-                >
-                  <SelectTrigger className="col-span-3">
-                    <SelectValue placeholder="Select a location" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    {locations.map((location) => (
-                      <SelectItem key={location.id} value={location.id}>
-                        {location.name}
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
+                {userRole === 'coordinator' ? (
+                  // For coordinators: read-only display of their location
+                  <div className="col-span-3">
+                    <Input 
+                      value={locations.find(l => l.id === formData.location_id)?.name || 'Not assigned'} 
+                      readOnly 
+                      disabled
+                      className="bg-muted"
+                    />
+                  </div>
+                ) : (
+                  // For admins: selectable location
+                  <Select 
+                    value={formData.location_id} 
+                    onValueChange={(value) => handleSelectChange('location_id', value)}
+                    required
+                  >
+                    <SelectTrigger className="col-span-3">
+                      <SelectValue placeholder="Select a location" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {locations.map((location) => (
+                        <SelectItem key={location.id} value={location.id}>
+                          {location.name}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                )}
               </div>
               <div className="grid grid-cols-4 items-center gap-4">
                 <Label htmlFor="coordinator_id" className="text-right">
                   Coordinator
                 </Label>
-                <Select 
-                  value={formData.coordinator_id} 
-                  onValueChange={(value) => handleSelectChange('coordinator_id', value)}
-                  disabled={userRole === 'coordinator'}
-                >
-                  <SelectTrigger className="col-span-3">
-                    <SelectValue placeholder="Select a coordinator" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    {coordinators.map((coordinator) => (
-                      <SelectItem key={coordinator.id} value={coordinator.id}>
-                        {coordinator.name}
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
+                {userRole === 'coordinator' ? (
+                  // For coordinators: read-only display of their name
+                  <div className="col-span-3">
+                    <Input 
+                      value={coordinators.find(c => c.id === formData.coordinator_id)?.name || 'Not assigned'} 
+                      readOnly 
+                      disabled
+                      className="bg-muted"
+                    />
+                  </div>
+                ) : (
+                  // For admins: selectable coordinator
+                  <Select 
+                    value={formData.coordinator_id} 
+                    onValueChange={(value) => handleSelectChange('coordinator_id', value)}
+                    required
+                  >
+                    <SelectTrigger className="col-span-3">
+                      <SelectValue placeholder="Select a coordinator" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {coordinators.map((coordinator) => (
+                        <SelectItem key={coordinator.id} value={coordinator.id}>
+                          {coordinator.name}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                )}
               </div>
               <div className="grid grid-cols-4 items-center gap-4">
                 <Label htmlFor="status" className="text-right">

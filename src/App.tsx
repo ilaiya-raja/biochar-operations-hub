@@ -50,11 +50,9 @@ const App = () => (
                 </Route>
 
                 {/* Coordinator routes */}
-                <Route element={<PrivateRoute allowedRoles={['coordinator']} />}>
-                  <Route path="/biomass-collection" element={<BiomassCollection />} />
-                  <Route path="/pyrolysis" element={<PyrolysisProcess />} />
-                  <Route path="/fertilizer-distribution" element={<FertilizerDistribution />} />
-                </Route>
+                <Route path="/biomass-collection" element={<BiomassCollection />} />
+                <Route path="/pyrolysis" element={<PyrolysisProcess />} />
+                <Route path="/fertilizer-distribution" element={<FertilizerDistribution />} />
               </Route>
             </Route>
             
