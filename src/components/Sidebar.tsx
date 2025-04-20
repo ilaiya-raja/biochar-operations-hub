@@ -1,3 +1,4 @@
+
 import React from 'react';
 import { useNavigate, useLocation } from 'react-router-dom';
 import { cn } from '@/lib/utils';
@@ -6,7 +7,10 @@ import {
   Leaf, 
   FlameIcon, 
   SproutIcon,
-  PackageIcon
+  PackageIcon,
+  MapPin,  // Added this import
+  UserCog, // Added this import
+  Users    // Added this import
 } from 'lucide-react';
 import { useAuth } from '@/contexts/AuthContext';
 
