@@ -1,3 +1,4 @@
+
 import { useState, useEffect } from 'react';
 import { Plus, Pencil, Trash2, Search, Flame } from 'lucide-react';
 import { Input } from '@/components/ui/input';
@@ -49,6 +50,7 @@ const Kilns = () => {
   const [kilns, setKilns] = useState<Kiln[]>([]);
   const [locations, setLocations] = useState<Location[]>([]);
   const [coordinators, setCoordinators] = useState<Coordinator[]>([]);
+  const [coordinatorProfile, setCoordinatorProfile] = useState<Coordinator | null>(null);
   const [loading, setLoading] = useState(true);
   const [searchQuery, setSearchQuery] = useState('');
   const [isDialogOpen, setIsDialogOpen] = useState(false);
@@ -82,6 +84,22 @@ const Kilns = () => {
       setKilns(kilnsData || []);
       setLocations(locationsData || []);
       setCoordinators(coordinatorsData || []);
+
+      // Find coordinator profile if user is a coordinator
+      if (userRole === 'coordinator' && userProfile?.email) {
+        const currentCoordinator = coordinatorsData?.find((c: Coordinator) => 
+          c.email === userProfile.email
+        );
+        
+        if (currentCoordinator) {
+          setCoordinatorProfile(currentCoordinator);
+          setFormData(prev => ({
+            ...prev,
+            coordinator_id: currentCoordinator.id,
+            location_id: currentCoordinator.location_id || '',
+          }));
+        }
+      }
     } catch (error) {
       console.error('Error fetching data:', error);
       toast.error('Failed to load data');
@@ -93,19 +111,6 @@ const Kilns = () => {
   useEffect(() => {
     fetchData();
   }, []);
-
-  useEffect(() => {
-    if (userRole === 'coordinator' && userProfile) {
-      const currentCoordinator = coordinators.find(c => c.email === userProfile.email);
-      if (currentCoordinator) {
-        setFormData(prev => ({
-          ...prev,
-          coordinator_id: currentCoordinator.id,
-          location_id: currentCoordinator.location_id || '',
-        }));
-      }
-    }
-  }, [userRole, userProfile, coordinators]);
 
   const handleInputChange = (e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement>) => {
     const { name, value } = e.target;
@@ -157,14 +162,26 @@ const Kilns = () => {
   };
 
   const resetForm = () => {
-    setFormData({
-      type: '',
-      capacity: '',
-      capacity_unit: 'kg',
-      location_id: '',
-      coordinator_id: '',
-      status: 'active',
-    });
+    // For coordinators, we want to pre-set their information
+    if (userRole === 'coordinator' && coordinatorProfile) {
+      setFormData({
+        type: '',
+        capacity: '',
+        capacity_unit: 'kg',
+        location_id: coordinatorProfile.location_id || '',
+        coordinator_id: coordinatorProfile.id,
+        status: 'active',
+      });
+    } else {
+      setFormData({
+        type: '',
+        capacity: '',
+        capacity_unit: 'kg',
+        location_id: '',
+        coordinator_id: '',
+        status: 'active',
+      });
+    }
     setSelectedKiln(null);
   };
 
@@ -359,10 +376,10 @@ const Kilns = () => {
                 <Label htmlFor="location_id" className="text-right">
                   Location
                 </Label>
-                {userRole === 'coordinator' ? (
+                {userRole === 'coordinator' && coordinatorProfile ? (
                   <div className="col-span-3">
                     <Input
-                      value={locations.find(l => l.id === formData.location_id)?.name || 'Location not assigned'}
+                      value={locations.find(l => l.id === coordinatorProfile.location_id)?.name || 'Not assigned'}
                       disabled
                       className="bg-gray-100"
                     />
@@ -389,10 +406,10 @@ const Kilns = () => {
                 <Label htmlFor="coordinator_id" className="text-right">
                   Coordinator
                 </Label>
-                {userRole === 'coordinator' ? (
+                {userRole === 'coordinator' && coordinatorProfile ? (
                   <div className="col-span-3">
                     <Input
-                      value={coordinators.find(c => c.id === formData.coordinator_id)?.name || 'Coordinator not assigned'}
+                      value={coordinatorProfile.name || 'Not assigned'}
                       disabled
                       className="bg-gray-100"
                     />
