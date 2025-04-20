@@ -1,17 +1,8 @@
-
 import { useState, useEffect } from 'react';
-import { Plus, Pencil, Trash2, Search, Flame } from 'lucide-react';
+import { Plus, Search } from 'lucide-react';
 import { Input } from '@/components/ui/input';
 import { Button } from '@/components/ui/button';
 import { toast } from 'sonner';
-import {
-  Table,
-  TableBody,
-  TableCell,
-  TableHead,
-  TableHeader,
-  TableRow,
-} from '@/components/ui/table';
 import {
   Card,
   CardContent,
@@ -22,18 +13,9 @@ import {
 import {
   Dialog,
   DialogContent,
-  DialogFooter,
   DialogHeader,
   DialogTitle,
 } from '@/components/ui/dialog';
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from '@/components/ui/select';
-import { Label } from '@/components/ui/label';
 import { Spinner } from '@/components/Spinner';
 import {
   kilnService,
@@ -44,6 +26,8 @@ import {
   Coordinator
 } from '@/services/supabase-service';
 import { useAuth } from '@/contexts/AuthContext';
+import KilnForm from '@/components/kilns/KilnForm';
+import KilnTable from '@/components/kilns/KilnTable';
 
 const Kilns = () => {
   const { userRole, userProfile } = useAuth();
@@ -87,7 +71,6 @@ const Kilns = () => {
       setLocations(locationsData || []);
       setCoordinators(coordinatorsData || []);
 
-      // Find coordinator profile if user is a coordinator
       if (userRole === 'coordinator' && userProfile?.email) {
         const currentCoordinator = coordinatorsData?.find((c: Coordinator) => 
           c.email === userProfile.email
@@ -114,7 +97,7 @@ const Kilns = () => {
     fetchData();
   }, []);
 
-  const handleInputChange = (e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement>) => {
+  const handleInputChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const { name, value } = e.target;
     setFormData(prev => ({ ...prev, [name]: value }));
   };
@@ -164,7 +147,6 @@ const Kilns = () => {
   };
 
   const resetForm = () => {
-    // For coordinators, we want to pre-set their information
     if (userRole === 'coordinator' && coordinatorProfile) {
       setFormData({
         name: '',
@@ -201,11 +183,6 @@ const Kilns = () => {
       status: kiln.status,
     });
     setIsDialogOpen(true);
-  };
-
-  const openDeleteDialog = (kiln: Kiln) => {
-    setSelectedKiln(kiln);
-    setIsDeleteDialogOpen(true);
   };
 
   const filteredKilns = kilns.filter(kiln =>
@@ -256,79 +233,18 @@ const Kilns = () => {
               <Spinner />
             </div>
           ) : (
-            <Table>
-              <TableHeader>
-                <TableRow>
-                  <TableHead>ID</TableHead>
-                  <TableHead>Name</TableHead>
-                  <TableHead>Type</TableHead>
-                  <TableHead>Capacity</TableHead>
-                  <TableHead>Location</TableHead>
-                  <TableHead>Coordinator</TableHead>
-                  <TableHead>Status</TableHead>
-                  <TableHead className="text-right">Actions</TableHead>
-                </TableRow>
-              </TableHeader>
-              <TableBody>
-                {filteredKilns.length === 0 ? (
-                  <TableRow>
-                    <TableCell colSpan={8} className="text-center">
-                      No kilns found
-                    </TableCell>
-                  </TableRow>
-                ) : (
-                  filteredKilns.map((kiln) => (
-                    <TableRow key={kiln.id}>
-                      <TableCell className="font-mono text-xs">{kiln.id.slice(0, 8)}</TableCell>
-                      <TableCell className="font-medium">{kiln.name}</TableCell>
-                      <TableCell className="font-medium">
-                        <div className="flex items-center">
-                          <Flame className="mr-2 h-4 w-4 text-orange-500" />
-                          {kiln.type || '-'}
-                        </div>
-                      </TableCell>
-                      <TableCell>
-                        {kiln.capacity ? `${kiln.capacity} ${kiln.capacity_unit || 'units'}` : '-'}
-                      </TableCell>
-                      <TableCell>{kiln.location?.name || '-'}</TableCell>
-                      <TableCell>{kiln.coordinator?.name || '-'}</TableCell>
-                      <TableCell>
-                        <span className={`px-2 py-1 rounded-full text-xs font-medium ${
-                          kiln.status === 'active' 
-                            ? 'bg-green-100 text-green-800' 
-                            : 'bg-gray-100 text-gray-800'
-                        }`}>
-                          {kiln.status}
-                        </span>
-                      </TableCell>
-                      <TableCell className="text-right">
-                        <div className="flex justify-end gap-2">
-                          <Button
-                            variant="outline"
-                            size="icon"
-                            onClick={() => openEditDialog(kiln)}
-                          >
-                            <Pencil className="h-4 w-4" />
-                          </Button>
-                          <Button
-                            variant="outline"
-                            size="icon"
-                            onClick={() => openDeleteDialog(kiln)}
-                          >
-                            <Trash2 className="h-4 w-4" />
-                          </Button>
-                        </div>
-                      </TableCell>
-                    </TableRow>
-                  ))
-                )}
-              </TableBody>
-            </Table>
+            <KilnTable 
+              kilns={filteredKilns}
+              onEdit={openEditDialog}
+              onDelete={(kiln) => {
+                setSelectedKiln(kiln);
+                setIsDeleteDialogOpen(true);
+              }}
+            />
           )}
         </CardContent>
       </Card>
 
-      {/* Create/Edit Dialog */}
       <Dialog open={isDialogOpen} onOpenChange={setIsDialogOpen}>
         <DialogContent className="sm:max-w-[500px]">
           <DialogHeader>
@@ -336,169 +252,35 @@ const Kilns = () => {
               {selectedKiln ? 'Edit Kiln' : 'Add New Kiln'}
             </DialogTitle>
           </DialogHeader>
-          <form onSubmit={handleSubmit}>
-            <div className="grid gap-4 py-4">
-              <div className="grid grid-cols-4 items-center gap-4">
-                <Label htmlFor="name" className="text-right">
-                  Name
-                </Label>
-                <Input
-                  id="name"
-                  name="name"
-                  value={formData.name}
-                  onChange={handleInputChange}
-                  className="col-span-3"
-                  required
-                />
-              </div>
-              <div className="grid grid-cols-4 items-center gap-4">
-                <Label htmlFor="type" className="text-right">
-                  Type
-                </Label>
-                <Input
-                  id="type"
-                  name="type"
-                  value={formData.type}
-                  onChange={handleInputChange}
-                  className="col-span-3"
-                  required
-                />
-              </div>
-              <div className="grid grid-cols-4 items-center gap-4">
-                <Label htmlFor="capacity" className="text-right">
-                  Capacity
-                </Label>
-                <div className="col-span-3 flex gap-2">
-                  <Input
-                    id="capacity"
-                    name="capacity"
-                    type="number"
-                    step="0.01"
-                    value={formData.capacity}
-                    onChange={handleInputChange}
-                    className="flex-1"
-                  />
-                  <Select 
-                    value={formData.capacity_unit} 
-                    onValueChange={(value) => handleSelectChange('capacity_unit', value)}
-                  >
-                    <SelectTrigger className="w-28">
-                      <SelectValue placeholder="Unit" />
-                    </SelectTrigger>
-                    <SelectContent>
-                      <SelectItem value="kg">kg</SelectItem>
-                      <SelectItem value="ton">ton</SelectItem>
-                      <SelectItem value="lb">lb</SelectItem>
-                    </SelectContent>
-                  </Select>
-                </div>
-              </div>
-              <div className="grid grid-cols-4 items-center gap-4">
-                <Label htmlFor="location_id" className="text-right">
-                  Location
-                </Label>
-                {userRole === 'coordinator' && coordinatorProfile ? (
-                  <div className="col-span-3">
-                    <Input
-                      value={locations.find(l => l.id === coordinatorProfile.location_id)?.name || 'Not assigned'}
-                      disabled
-                      className="bg-gray-100"
-                    />
-                  </div>
-                ) : (
-                  <Select 
-                    value={formData.location_id} 
-                    onValueChange={(value) => handleSelectChange('location_id', value)}
-                  >
-                    <SelectTrigger className="col-span-3">
-                      <SelectValue placeholder="Select a location" />
-                    </SelectTrigger>
-                    <SelectContent>
-                      {locations.map((location) => (
-                        <SelectItem key={location.id} value={location.id}>
-                          {location.name}
-                        </SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
-                )}
-              </div>
-              <div className="grid grid-cols-4 items-center gap-4">
-                <Label htmlFor="coordinator_id" className="text-right">
-                  Coordinator
-                </Label>
-                {userRole === 'coordinator' && coordinatorProfile ? (
-                  <div className="col-span-3">
-                    <Input
-                      value={coordinatorProfile.name || 'Not assigned'}
-                      disabled
-                      className="bg-gray-100"
-                    />
-                  </div>
-                ) : (
-                  <Select 
-                    value={formData.coordinator_id} 
-                    onValueChange={(value) => handleSelectChange('coordinator_id', value)}
-                  >
-                    <SelectTrigger className="col-span-3">
-                      <SelectValue placeholder="Select a coordinator" />
-                    </SelectTrigger>
-                    <SelectContent>
-                      {coordinators.map((coordinator) => (
-                        <SelectItem key={coordinator.id} value={coordinator.id}>
-                          {coordinator.name}
-                        </SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
-                )}
-              </div>
-              <div className="grid grid-cols-4 items-center gap-4">
-                <Label htmlFor="status" className="text-right">
-                  Status
-                </Label>
-                <Select 
-                  value={formData.status} 
-                  onValueChange={(value) => handleSelectChange('status', value)}
-                >
-                  <SelectTrigger className="col-span-3">
-                    <SelectValue placeholder="Select status" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="active">Active</SelectItem>
-                    <SelectItem value="inactive">Inactive</SelectItem>
-                    <SelectItem value="maintenance">Maintenance</SelectItem>
-                  </SelectContent>
-                </Select>
-              </div>
-            </div>
-            <DialogFooter>
-              <Button type="button" variant="outline" onClick={() => setIsDialogOpen(false)}>
-                Cancel
-              </Button>
-              <Button type="submit">
-                {selectedKiln ? 'Update' : 'Add'} Kiln
-              </Button>
-            </DialogFooter>
-          </form>
+          <KilnForm
+            formData={formData}
+            locations={locations}
+            coordinators={coordinators}
+            userRole={userRole}
+            coordinatorProfile={coordinatorProfile}
+            onSubmit={handleSubmit}
+            onCancel={() => setIsDialogOpen(false)}
+            onInputChange={handleInputChange}
+            onSelectChange={handleSelectChange}
+            isEditing={!!selectedKiln}
+          />
         </DialogContent>
       </Dialog>
 
-      {/* Delete Confirmation Dialog */}
       <Dialog open={isDeleteDialogOpen} onOpenChange={setIsDeleteDialogOpen}>
         <DialogContent>
           <DialogHeader>
             <DialogTitle>Confirm Deletion</DialogTitle>
           </DialogHeader>
           <p>Are you sure you want to delete this kiln? This action cannot be undone.</p>
-          <DialogFooter>
+          <div className="flex justify-end gap-2">
             <Button variant="outline" onClick={() => setIsDeleteDialogOpen(false)}>
               Cancel
             </Button>
             <Button variant="destructive" onClick={handleDelete}>
               Delete
             </Button>
-          </DialogFooter>
+          </div>
         </DialogContent>
       </Dialog>
     </div>
