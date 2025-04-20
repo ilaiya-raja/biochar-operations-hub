@@ -36,6 +36,7 @@ import {
 import { Label } from '@/components/ui/label';
 import { Spinner } from '@/components/Spinner';
 import { supabase } from '@/lib/supabase';
+import { useAuth } from '@/contexts/AuthContext';
 
 interface Farmer {
   id: string;
@@ -84,6 +85,8 @@ const Farmers = () => {
     location_id: false,
     coordinator_id: false,
   });
+  const { userRole } = useAuth();
+  const [coordinatorProfile, setCoordinatorProfile] = useState<Coordinator | null>(null);
 
   const fetchFarmers = async () => {
     setLoading(true);
@@ -133,11 +136,46 @@ const Farmers = () => {
     }
   };
 
+  const fetchCoordinatorProfile = async () => {
+    if (userRole !== 'coordinator') return;
+
+    try {
+      // Get the current user
+      const { data: { user } } = await supabase.auth.getUser();
+      if (!user) return;
+
+      // Find the coordinator profile by matching email
+      const { data, error } = await supabase
+        .from('coordinators')
+        .select('id, name, location_id')
+        .eq('email', user.email)
+        .single();
+      
+      if (error) {
+        console.error('Error fetching coordinator profile:', error);
+        return;
+      }
+      
+      if (data) {
+        setCoordinatorProfile(data);
+        // Pre-set the form data with coordinator's values
+        setFormData(prev => ({
+          ...prev,
+          coordinator_id: data.id,
+          location_id: data.location_id || ''
+        }));
+      }
+    } catch (error) {
+      console.error('Error fetching coordinator profile:', error);
+    }
+  };
+
   useEffect(() => {
     fetchFarmers();
     fetchLocations();
     fetchCoordinators();
-  }, []);
+    fetchCoordinatorProfile();
+  }, [userRole]);
 
   const handleInputChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const { name, value } = e.target;
@@ -178,17 +216,24 @@ const Farmers = () => {
       return;
     }
 
+    // If user is a coordinator, override location_id and coordinator_id with their own
+    const submissionData = { ...formData };
+    if (userRole === 'coordinator' && coordinatorProfile) {
+      submissionData.coordinator_id = coordinatorProfile.id;
+      submissionData.location_id = coordinatorProfile.location_id || formData.location_id;
+    }
+
     try {
       if (selectedFarmer) {
         const { error } = await supabase
           .from('farmers')
           .update({
-            name: formData.name,
-            phone: formData.phone,
-            email: formData.email || null,
-            address: formData.address || null,
-            location_id: formData.location_id,
-            coordinator_id: formData.coordinator_id,
+            name: submissionData.name,
+            phone: submissionData.phone,
+            email: submissionData.email || null,
+            address: submissionData.address || null,
+            location_id: submissionData.location_id,
+            coordinator_id: submissionData.coordinator_id,
             updated_at: new Date().toISOString(),
           })
           .eq('id', selectedFarmer.id);
@@ -199,12 +244,12 @@ const Farmers = () => {
         const { error } = await supabase
           .from('farmers')
           .insert({
-            name: formData.name,
-            phone: formData.phone,
-            email: formData.email || null,
-            address: formData.address || null,
-            location_id: formData.location_id,
-            coordinator_id: formData.coordinator_id,
+            name: submissionData.name,
+            phone: submissionData.phone,
+            email: submissionData.email || null,
+            address: submissionData.address || null,
+            location_id: submissionData.location_id,
+            coordinator_id: submissionData.coordinator_id,
           });
 
         if (error) throw error;
@@ -240,14 +285,22 @@ const Farmers = () => {
   };
 
   const resetForm = () => {
-    setFormData({
+    const initialFormData = {
       name: '',
       phone: '',
       email: '',
       address: '',
       location_id: '',
       coordinator_id: '',
-    });
+    };
+
+    // If user is a coordinator, pre-set their ID and location
+    if (userRole === 'coordinator' && coordinatorProfile) {
+      initialFormData.coordinator_id = coordinatorProfile.id;
+      initialFormData.location_id = coordinatorProfile.location_id || '';
+    }
+
+    setFormData(initialFormData);
     setFormErrors({
       name: false,
       phone: false,
@@ -259,18 +312,34 @@ const Farmers = () => {
 
   const openEditDialog = (farmer: Farmer) => {
     setSelectedFarmer(farmer);
-    setFormData({
+    
+    // Start with the farmer data
+    let editFormData = {
       name: farmer.name,
       phone: farmer.phone,
       email: farmer.email || '',
       address: farmer.address || '',
       location_id: farmer.location_id,
       coordinator_id: farmer.coordinator_id,
-    });
+    };
+    
+    // If user is a coordinator, enforce their ID and location
+    if (userRole === 'coordinator' && coordinatorProfile) {
+      editFormData.coordinator_id = coordinatorProfile.id;
+      editFormData.location_id = coordinatorProfile.location_id || farmer.location_id;
+    }
+    
+    setFormData(editFormData);
     setIsDialogOpen(true);
   };
 
   const openDeleteDialog = (farmer: Farmer) => {
+    // Only allow delete if admin or if coordinator owns this farmer
+    if (userRole === 'coordinator' && farmer.coordinator_id !== coordinatorProfile?.id) {
+      toast.error("You can only delete farmers assigned to you");
+      return;
+    }
+    
     setSelectedFarmer(farmer);
     setIsDeleteDialogOpen(true);
   };
@@ -282,7 +351,13 @@ const Farmers = () => {
     (farmer.email && farmer.email.toLowerCase().includes(searchQuery.toLowerCase())) ||
     (farmer.location?.name && farmer.location.name.toLowerCase().includes(searchQuery.toLowerCase())) ||
     (farmer.coordinator?.name && farmer.coordinator.name.toLowerCase().includes(searchQuery.toLowerCase()))
-  );
+  ).filter(farmer => {
+    // If coordinator, only show their farmers
+    if (userRole === 'coordinator' && coordinatorProfile) {
+      return farmer.coordinator_id === coordinatorProfile.id;
+    }
+    return true;
+  });
 
   return (
     <div className="space-y-6">
@@ -451,62 +526,87 @@ const Farmers = () => {
                   className="col-span-3"
                 />
               </div>
-              <div className="grid grid-cols-4 items-center gap-4">
-                <Label htmlFor="location_id" className="text-right">
-                  Location *
-                </Label>
-                <Select
-                  value={formData.location_id}
-                  onValueChange={(value) => handleSelectChange('location_id', value)}
-                >
-                  <SelectTrigger
-                    id="location_id"
-                    className={`col-span-3 ${formErrors.location_id ? 'border-red-500' : ''}`}
-                  >
-                    <SelectValue placeholder="Select location" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    {locations.map((location) => (
-                      <SelectItem key={location.id} value={location.id}>
-                        {location.name}
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
-                {formErrors.location_id && (
-                  <div className="col-span-3 col-start-2 text-xs text-red-500">
-                    Location is required
+              
+              {userRole === 'admin' ? (
+                <>
+                  <div className="grid grid-cols-4 items-center gap-4">
+                    <Label htmlFor="location_id" className="text-right">
+                      Location *
+                    </Label>
+                    <Select
+                      value={formData.location_id}
+                      onValueChange={(value) => handleSelectChange('location_id', value)}
+                    >
+                      <SelectTrigger
+                        id="location_id"
+                        className={`col-span-3 ${formErrors.location_id ? 'border-red-500' : ''}`}
+                      >
+                        <SelectValue placeholder="Select location" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        {locations.map((location) => (
+                          <SelectItem key={location.id} value={location.id}>
+                            {location.name}
+                          </SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                    {formErrors.location_id && (
+                      <div className="col-span-3 col-start-2 text-xs text-red-500">
+                        Location is required
+                      </div>
+                    )}
                   </div>
-                )}
-              </div>
-              <div className="grid grid-cols-4 items-center gap-4">
-                <Label htmlFor="coordinator_id" className="text-right">
-                  Coordinator *
-                </Label>
-                <Select
-                  value={formData.coordinator_id}
-                  onValueChange={(value) => handleSelectChange('coordinator_id', value)}
-                >
-                  <SelectTrigger
-                    id="coordinator_id"
-                    className={`col-span-3 ${formErrors.coordinator_id ? 'border-red-500' : ''}`}
-                  >
-                    <SelectValue placeholder="Select coordinator" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    {coordinators.map((coordinator) => (
-                      <SelectItem key={coordinator.id} value={coordinator.id}>
-                        {coordinator.name}
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
-                {formErrors.coordinator_id && (
-                  <div className="col-span-3 col-start-2 text-xs text-red-500">
-                    Coordinator is required
+                  <div className="grid grid-cols-4 items-center gap-4">
+                    <Label htmlFor="coordinator_id" className="text-right">
+                      Coordinator *
+                    </Label>
+                    <Select
+                      value={formData.coordinator_id}
+                      onValueChange={(value) => handleSelectChange('coordinator_id', value)}
+                    >
+                      <SelectTrigger
+                        id="coordinator_id"
+                        className={`col-span-3 ${formErrors.coordinator_id ? 'border-red-500' : ''}`}
+                      >
+                        <SelectValue placeholder="Select coordinator" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        {coordinators.map((coordinator) => (
+                          <SelectItem key={coordinator.id} value={coordinator.id}>
+                            {coordinator.name}
+                          </SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                    {formErrors.coordinator_id && (
+                      <div className="col-span-3 col-start-2 text-xs text-red-500">
+                        Coordinator is required
+                      </div>
+                    )}
                   </div>
-                )}
-              </div>
+                </>
+              ) : (
+                <>
+                  {/* For coordinators, display read-only fields */}
+                  <div className="grid grid-cols-4 items-center gap-4">
+                    <Label htmlFor="location_display" className="text-right">
+                      Location
+                    </Label>
+                    <div className="col-span-3 px-3 py-2 border rounded bg-gray-50">
+                      {locations.find(l => l.id === formData.location_id)?.name || 'Your assigned location'}
+                    </div>
+                  </div>
+                  <div className="grid grid-cols-4 items-center gap-4">
+                    <Label htmlFor="coordinator_display" className="text-right">
+                      Coordinator
+                    </Label>
+                    <div className="col-span-3 px-3 py-2 border rounded bg-gray-50">
+                      {coordinatorProfile?.name || 'You'}
+                    </div>
+                  </div>
+                </>
+              )}
             </div>
             <DialogFooter>
               <Button type="button" variant="outline" onClick={() => setIsDialogOpen(false)}>

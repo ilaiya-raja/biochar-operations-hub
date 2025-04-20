@@ -29,6 +29,7 @@ import {
 import { Label } from '@/components/ui/label';
 import { Spinner } from '@/components/Spinner';
 import { locationService } from '@/services/supabase-service';
+import { useAuth } from '@/contexts/AuthContext';
 
 interface Location {
   id: string;
@@ -55,6 +56,8 @@ const Locations = () => {
     state: '',
     country: '',
   });
+  const { userRole } = useAuth();
+  const isCoordinator = userRole === 'coordinator';
 
   const fetchLocations = async () => {
     setLoading(true);
@@ -121,6 +124,12 @@ const Locations = () => {
   };
 
   const openEditDialog = (location: Location) => {
+    // Block coordinators from editing
+    if (isCoordinator) {
+      toast.error("You don't have permission to edit locations");
+      return;
+    }
+    
     setSelectedLocation(location);
     setFormData({
       name: location.name,
@@ -133,6 +142,12 @@ const Locations = () => {
   };
 
   const openDeleteDialog = (location: Location) => {
+    // Block coordinators from deleting
+    if (isCoordinator) {
+      toast.error("You don't have permission to delete locations");
+      return;
+    }
+    
     setSelectedLocation(location);
     setIsDeleteDialogOpen(true);
   };
@@ -154,12 +169,14 @@ const Locations = () => {
             Manage all locations where biochar operations are conducted
           </p>
         </div>
-        <Button onClick={() => {
-          resetForm();
-          setIsDialogOpen(true);
-        }}>
-          <Plus className="mr-2 h-4 w-4" /> Add Location
-        </Button>
+        {!isCoordinator && (
+          <Button onClick={() => {
+            resetForm();
+            setIsDialogOpen(true);
+          }}>
+            <Plus className="mr-2 h-4 w-4" /> Add Location
+          </Button>
+        )}
       </div>
 
       <div className="flex items-center space-x-2">
@@ -193,13 +210,15 @@ const Locations = () => {
                   <TableHead>District</TableHead>
                   <TableHead>State</TableHead>
                   <TableHead>Country</TableHead>
-                  <TableHead className="text-right">Actions</TableHead>
+                  {!isCoordinator && (
+                    <TableHead className="text-right">Actions</TableHead>
+                  )}
                 </TableRow>
               </TableHeader>
               <TableBody>
                 {filteredLocations.length === 0 ? (
                   <TableRow>
-                    <TableCell colSpan={6} className="text-center">
+                    <TableCell colSpan={isCoordinator ? 5 : 6} className="text-center">
                       No locations found
                     </TableCell>
                   </TableRow>
@@ -216,24 +235,26 @@ const Locations = () => {
                       <TableCell>{location.district || '-'}</TableCell>
                       <TableCell>{location.state || '-'}</TableCell>
                       <TableCell>{location.country || '-'}</TableCell>
-                      <TableCell className="text-right">
-                        <div className="flex justify-end gap-2">
-                          <Button
-                            variant="outline"
-                            size="icon"
-                            onClick={() => openEditDialog(location)}
-                          >
-                            <Pencil className="h-4 w-4" />
-                          </Button>
-                          <Button
-                            variant="outline"
-                            size="icon"
-                            onClick={() => openDeleteDialog(location)}
-                          >
-                            <Trash2 className="h-4 w-4" />
-                          </Button>
-                        </div>
-                      </TableCell>
+                      {!isCoordinator && (
+                        <TableCell className="text-right">
+                          <div className="flex justify-end gap-2">
+                            <Button
+                              variant="outline"
+                              size="icon"
+                              onClick={() => openEditDialog(location)}
+                            >
+                              <Pencil className="h-4 w-4" />
+                            </Button>
+                            <Button
+                              variant="outline"
+                              size="icon"
+                              onClick={() => openDeleteDialog(location)}
+                            >
+                              <Trash2 className="h-4 w-4" />
+                            </Button>
+                          </div>
+                        </TableCell>
+                      )}
                     </TableRow>
                   ))
                 )}

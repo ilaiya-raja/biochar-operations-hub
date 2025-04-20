@@ -53,6 +53,8 @@ import {
   coordinatorService,
   locationService 
 } from '@/services/supabase-service';
+import { useAuth } from '@/contexts/AuthContext';
+import { Navigate } from 'react-router-dom';
 
 const formSchema = z.object({
   name: z.string().min(2, { message: 'Name must be at least 2 characters.' }),
@@ -73,6 +75,13 @@ const Coordinators = () => {
   const [isDeleteDialogOpen, setIsDeleteDialogOpen] = useState(false);
   const [isFormDialogOpen, setIsFormDialogOpen] = useState(false);
   const [inviteLoading, setInviteLoading] = useState(false);
+  const { userRole } = useAuth();
+
+  // Redirect coordinator users away from this page
+  if (userRole === 'coordinator') {
+    toast.error("You don't have permission to manage coordinators");
+    return <Navigate to="/dashboard" replace />;
+  }
 
   const form = useForm<FormValues>({
     resolver: zodResolver(formSchema),
