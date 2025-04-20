@@ -57,6 +57,7 @@ const Kilns = () => {
   const [isDeleteDialogOpen, setIsDeleteDialogOpen] = useState(false);
   const [selectedKiln, setSelectedKiln] = useState<Kiln | null>(null);
   const [formData, setFormData] = useState<{
+    name: string;
     type: string;
     capacity: string;
     capacity_unit: string;
@@ -64,6 +65,7 @@ const Kilns = () => {
     coordinator_id: string;
     status: string;
   }>({
+    name: '',
     type: '',
     capacity: '',
     capacity_unit: 'kg',
@@ -165,6 +167,7 @@ const Kilns = () => {
     // For coordinators, we want to pre-set their information
     if (userRole === 'coordinator' && coordinatorProfile) {
       setFormData({
+        name: '',
         type: '',
         capacity: '',
         capacity_unit: 'kg',
@@ -174,6 +177,7 @@ const Kilns = () => {
       });
     } else {
       setFormData({
+        name: '',
         type: '',
         capacity: '',
         capacity_unit: 'kg',
@@ -188,6 +192,7 @@ const Kilns = () => {
   const openEditDialog = (kiln: Kiln) => {
     setSelectedKiln(kiln);
     setFormData({
+      name: kiln.name,
       type: kiln.type || '',
       capacity: kiln.capacity ? kiln.capacity.toString() : '',
       capacity_unit: kiln.capacity_unit || 'kg',
@@ -206,6 +211,7 @@ const Kilns = () => {
   const filteredKilns = kilns.filter(kiln =>
     (kiln.type && kiln.type.toLowerCase().includes(searchQuery.toLowerCase())) ||
     kiln.id.toLowerCase().includes(searchQuery.toLowerCase()) ||
+    kiln.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
     (kiln.location?.name && kiln.location.name.toLowerCase().includes(searchQuery.toLowerCase())) ||
     (kiln.coordinator?.name && kiln.coordinator.name.toLowerCase().includes(searchQuery.toLowerCase()))
   );
@@ -254,6 +260,7 @@ const Kilns = () => {
               <TableHeader>
                 <TableRow>
                   <TableHead>ID</TableHead>
+                  <TableHead>Name</TableHead>
                   <TableHead>Type</TableHead>
                   <TableHead>Capacity</TableHead>
                   <TableHead>Location</TableHead>
@@ -265,7 +272,7 @@ const Kilns = () => {
               <TableBody>
                 {filteredKilns.length === 0 ? (
                   <TableRow>
-                    <TableCell colSpan={7} className="text-center">
+                    <TableCell colSpan={8} className="text-center">
                       No kilns found
                     </TableCell>
                   </TableRow>
@@ -273,6 +280,7 @@ const Kilns = () => {
                   filteredKilns.map((kiln) => (
                     <TableRow key={kiln.id}>
                       <TableCell className="font-mono text-xs">{kiln.id.slice(0, 8)}</TableCell>
+                      <TableCell className="font-medium">{kiln.name}</TableCell>
                       <TableCell className="font-medium">
                         <div className="flex items-center">
                           <Flame className="mr-2 h-4 w-4 text-orange-500" />
@@ -330,6 +338,19 @@ const Kilns = () => {
           </DialogHeader>
           <form onSubmit={handleSubmit}>
             <div className="grid gap-4 py-4">
+              <div className="grid grid-cols-4 items-center gap-4">
+                <Label htmlFor="name" className="text-right">
+                  Name
+                </Label>
+                <Input
+                  id="name"
+                  name="name"
+                  value={formData.name}
+                  onChange={handleInputChange}
+                  className="col-span-3"
+                  required
+                />
+              </div>
               <div className="grid grid-cols-4 items-center gap-4">
                 <Label htmlFor="type" className="text-right">
                   Type
