@@ -50,7 +50,7 @@ export const Sidebar = ({ isOpen }: SidebarProps) => {
     { name: 'Fertilizer Distribution', href: '/fertilizer-distribution', icon: SproutIcon },
   ];
 
-  // Default to admin navigation unless explicitly set to coordinator
+  // Use navigation based on role
   const navigation = userRole === 'coordinator' ? coordinatorNavigation : adminNavigation;
   
   const handleNavigation = (path: string) => {
