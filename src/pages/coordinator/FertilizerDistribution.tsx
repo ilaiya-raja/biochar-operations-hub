@@ -27,9 +27,7 @@ const FertilizerDistribution = () => {
       try {
         const [farmersResponse, fertilizersResponse] = await Promise.all([
           supabase.from('farmers').select('id, name'),
-          supabase.from('fertilizers')
-            .select('id, name, type, quantity')
-            .eq('status', 'available')
+          supabase.from('fertilizers').select('id, name, type, quantity').where('status', 'eq', 'available')
         ]);
 
         if (farmersResponse.data) setFarmers(farmersResponse.data);
