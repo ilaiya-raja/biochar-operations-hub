@@ -54,7 +54,6 @@ import {
   locationService 
 } from '@/services/supabase-service';
 import { useAuth } from '@/contexts/AuthContext';
-import { Navigate } from 'react-router-dom';
 
 const formSchema = z.object({
   name: z.string().min(2, { message: 'Name must be at least 2 characters.' }),
@@ -76,12 +75,6 @@ const Coordinators = () => {
   const [isFormDialogOpen, setIsFormDialogOpen] = useState(false);
   const [inviteLoading, setInviteLoading] = useState(false);
   const { userRole } = useAuth();
-
-  // Redirect coordinator users away from this page
-  if (userRole === 'coordinator') {
-    toast.error("You don't have permission to manage coordinators");
-    return <Navigate to="/dashboard" replace />;
-  }
 
   const form = useForm<FormValues>({
     resolver: zodResolver(formSchema),
@@ -196,6 +189,12 @@ const Coordinators = () => {
   };
 
   const openEditDialog = (coordinator: Coordinator) => {
+    // Only admin can edit coordinators
+    if (userRole !== 'admin') {
+      toast.error("You don't have permission to edit coordinators");
+      return;
+    }
+    
     setSelectedCoordinator(coordinator);
     form.reset({
       name: coordinator.name,
@@ -208,6 +207,12 @@ const Coordinators = () => {
   };
 
   const openDeleteDialog = (coordinator: Coordinator) => {
+    // Only admin can delete coordinators
+    if (userRole !== 'admin') {
+      toast.error("You don't have permission to delete coordinators");
+      return;
+    }
+    
     setSelectedCoordinator(coordinator);
     setIsDeleteDialogOpen(true);
   };
@@ -241,9 +246,11 @@ const Coordinators = () => {
             Manage coordinators for the biochar operations.
           </p>
         </div>
-        <Button onClick={openCreateDialog}>
-          <Plus className="mr-2 h-4 w-4" /> Add Coordinator
-        </Button>
+        {userRole === 'admin' && (
+          <Button onClick={openCreateDialog}>
+            <Plus className="mr-2 h-4 w-4" /> Add Coordinator
+          </Button>
+        )}
       </div>
 
       <div className="flex items-center space-x-2">
@@ -278,13 +285,15 @@ const Coordinators = () => {
                   <TableHead>Phone</TableHead>
                   <TableHead>Location</TableHead>
                   <TableHead>Status</TableHead>
-                  <TableHead className="text-right">Actions</TableHead>
+                  {userRole === 'admin' && (
+                    <TableHead className="text-right">Actions</TableHead>
+                  )}
                 </TableRow>
               </TableHeader>
               <TableBody>
                 {filteredCoordinators.length === 0 ? (
                   <TableRow>
-                    <TableCell colSpan={7} className="text-center">
+                    <TableCell colSpan={userRole === 'admin' ? 7 : 6} className="text-center">
                       No coordinators found.
                     </TableCell>
                   </TableRow>
@@ -325,24 +334,26 @@ const Coordinators = () => {
                           {coordinator.status}
                         </span>
                       </TableCell>
-                      <TableCell className="text-right">
-                        <div className="flex justify-end gap-2">
-                          <Button
-                            variant="outline"
-                            size="icon"
-                            onClick={() => openEditDialog(coordinator)}
-                          >
-                            <Pencil className="h-4 w-4" />
-                          </Button>
-                          <Button
-                            variant="outline"
-                            size="icon"
-                            onClick={() => openDeleteDialog(coordinator)}
-                          >
-                            <Trash2 className="h-4 w-4" />
-                          </Button>
-                        </div>
-                      </TableCell>
+                      {userRole === 'admin' && (
+                        <TableCell className="text-right">
+                          <div className="flex justify-end gap-2">
+                            <Button
+                              variant="outline"
+                              size="icon"
+                              onClick={() => openEditDialog(coordinator)}
+                            >
+                              <Pencil className="h-4 w-4" />
+                            </Button>
+                            <Button
+                              variant="outline"
+                              size="icon"
+                              onClick={() => openDeleteDialog(coordinator)}
+                            >
+                              <Trash2 className="h-4 w-4" />
+                            </Button>
+                          </div>
+                        </TableCell>
+                      )}
                     </TableRow>
                   ))
                 )}
