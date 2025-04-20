@@ -1,4 +1,3 @@
-
 import { useState, useEffect } from 'react';
 import { Plus, Pencil, Trash2, Search, Flame } from 'lucide-react';
 import { Input } from '@/components/ui/input';
@@ -80,17 +79,14 @@ const Kilns = () => {
         coordinatorService.getCoordinators()
       ]);
       
-      // Filter data based on user role
       let filteredKilns = kilnsData || [];
       let filteredLocations = locationsData || [];
       
-      // If coordinator, only show kilns associated with their coordinator_id
       if (userRole === 'coordinator' && userProfile?.coordinator?.id) {
         filteredKilns = filteredKilns.filter(kiln => 
           kiln.coordinator_id === userProfile.coordinator.id
         );
         
-        // Only show the coordinator's location
         if (userProfile.coordinator.location_id) {
           filteredLocations = filteredLocations.filter(location => 
             location.id === userProfile.coordinator.location_id
@@ -114,15 +110,17 @@ const Kilns = () => {
   }, [userRole, userProfile]);
 
   useEffect(() => {
-    // Set default values for coordinator when form is opened
     if (isDialogOpen && userRole === 'coordinator' && userProfile?.coordinator) {
+      const coordinatorId = userProfile.coordinator.id;
+      const locationId = userProfile.coordinator.location_id;
+      
       setFormData(prev => ({
         ...prev,
-        location_id: userProfile.coordinator.location_id || '',
-        coordinator_id: userProfile.coordinator.id || ''
+        location_id: locationId || '',
+        coordinator_id: coordinatorId || ''
       }));
     }
-  }, [isDialogOpen, userRole, userProfile]);
+  }, [isDialogOpen, userRole, userProfile, coordinators, locations]);
 
   const handleInputChange = (e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement>) => {
     const { name, value } = e.target;
@@ -130,7 +128,6 @@ const Kilns = () => {
   };
 
   const handleSelectChange = (name: string, value: string) => {
-    // For coordinators, don't allow changing location_id or coordinator_id
     if (userRole === 'coordinator' && (name === 'location_id' || name === 'coordinator_id')) {
       return;
     }
@@ -142,7 +139,6 @@ const Kilns = () => {
     e.preventDefault();
     
     try {
-      // If user is coordinator, force their coordinator ID and location
       let submissionData = {...formData};
       if (userRole === 'coordinator' && userProfile?.coordinator) {
         submissionData.coordinator_id = userProfile.coordinator.id;
@@ -155,7 +151,6 @@ const Kilns = () => {
       };
 
       if (selectedKiln) {
-        // Check if user has permission to edit this kiln
         if (userRole === 'coordinator' && selectedKiln.coordinator_id !== userProfile?.coordinator?.id) {
           toast.error("You don't have permission to edit this kiln");
           return;
@@ -180,7 +175,6 @@ const Kilns = () => {
   const handleDelete = async () => {
     if (!selectedKiln) return;
     
-    // Check if user has permission to delete this kiln
     if (userRole === 'coordinator' && selectedKiln.coordinator_id !== userProfile?.coordinator?.id) {
       toast.error("You don't have permission to delete this kiln");
       return;
@@ -198,7 +192,6 @@ const Kilns = () => {
   };
 
   const resetForm = () => {
-    // If coordinator, we still pre-set their ID and location
     if (userRole === 'coordinator' && userProfile?.coordinator) {
       setFormData({
         type: '',
@@ -222,7 +215,6 @@ const Kilns = () => {
   };
 
   const openEditDialog = (kiln: Kiln) => {
-    // Check if user has permission to edit this kiln
     if (userRole === 'coordinator' && kiln.coordinator_id !== userProfile?.coordinator?.id) {
       toast.error("You don't have permission to edit this kiln");
       return;
@@ -241,7 +233,6 @@ const Kilns = () => {
   };
 
   const openDeleteDialog = (kiln: Kiln) => {
-    // Check if user has permission to delete this kiln
     if (userRole === 'coordinator' && kiln.coordinator_id !== userProfile?.coordinator?.id) {
       toast.error("You don't have permission to delete this kiln");
       return;
@@ -368,7 +359,6 @@ const Kilns = () => {
         </CardContent>
       </Card>
 
-      {/* Create/Edit Dialog */}
       <Dialog open={isDialogOpen} onOpenChange={setIsDialogOpen}>
         <DialogContent className="sm:max-w-[500px]">
           <DialogHeader>
@@ -425,7 +415,6 @@ const Kilns = () => {
                   Location
                 </Label>
                 {userRole === 'coordinator' ? (
-                  // For coordinators: read-only display of their location
                   <div className="col-span-3">
                     <Input 
                       value={locations.find(l => l.id === formData.location_id)?.name || 'Not assigned'} 
@@ -435,7 +424,6 @@ const Kilns = () => {
                     />
                   </div>
                 ) : (
-                  // For admins: selectable location
                   <Select 
                     value={formData.location_id} 
                     onValueChange={(value) => handleSelectChange('location_id', value)}
@@ -459,7 +447,6 @@ const Kilns = () => {
                   Coordinator
                 </Label>
                 {userRole === 'coordinator' ? (
-                  // For coordinators: read-only display of their name
                   <div className="col-span-3">
                     <Input 
                       value={coordinators.find(c => c.id === formData.coordinator_id)?.name || 'Not assigned'} 
@@ -469,7 +456,6 @@ const Kilns = () => {
                     />
                   </div>
                 ) : (
-                  // For admins: selectable coordinator
                   <Select 
                     value={formData.coordinator_id} 
                     onValueChange={(value) => handleSelectChange('coordinator_id', value)}
@@ -519,7 +505,6 @@ const Kilns = () => {
         </DialogContent>
       </Dialog>
 
-      {/* Delete Confirmation Dialog */}
       <Dialog open={isDeleteDialogOpen} onOpenChange={setIsDeleteDialogOpen}>
         <DialogContent>
           <DialogHeader>
