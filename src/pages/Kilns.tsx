@@ -1,3 +1,4 @@
+
 import { useState, useEffect } from 'react';
 import { Plus, Pencil, Trash2, Search, Flame } from 'lucide-react';
 import { Input } from '@/components/ui/input';
@@ -42,7 +43,6 @@ import {
   Location,
   Coordinator
 } from '@/services/supabase-service';
-import { useAuth } from '@/contexts/AuthContext';
 
 const Kilns = () => {
   const [kilns, setKilns] = useState<Kiln[]>([]);
@@ -53,7 +53,6 @@ const Kilns = () => {
   const [isDialogOpen, setIsDialogOpen] = useState(false);
   const [isDeleteDialogOpen, setIsDeleteDialogOpen] = useState(false);
   const [selectedKiln, setSelectedKiln] = useState<Kiln | null>(null);
-  const { userRole, userProfile } = useAuth();
   const [formData, setFormData] = useState<{
     type: string;
     capacity: string;
@@ -79,23 +78,8 @@ const Kilns = () => {
         coordinatorService.getCoordinators()
       ]);
       
-      let filteredKilns = kilnsData || [];
-      let filteredLocations = locationsData || [];
-      
-      if (userRole === 'coordinator' && userProfile?.coordinator?.id) {
-        filteredKilns = filteredKilns.filter(kiln => 
-          kiln.coordinator_id === userProfile.coordinator.id
-        );
-        
-        if (userProfile.coordinator.location_id) {
-          filteredLocations = filteredLocations.filter(location => 
-            location.id === userProfile.coordinator.location_id
-          );
-        }
-      }
-      
-      setKilns(filteredKilns);
-      setLocations(filteredLocations);
+      setKilns(kilnsData || []);
+      setLocations(locationsData || []);
       setCoordinators(coordinatorsData || []);
     } catch (error) {
       console.error('Error fetching data:', error);
@@ -107,20 +91,7 @@ const Kilns = () => {
 
   useEffect(() => {
     fetchData();
-  }, [userRole, userProfile]);
-
-  useEffect(() => {
-    if (isDialogOpen && userRole === 'coordinator' && userProfile?.coordinator) {
-      const coordinatorId = userProfile.coordinator.id;
-      const locationId = userProfile.coordinator.location_id;
-      
-      setFormData(prev => ({
-        ...prev,
-        location_id: locationId || '',
-        coordinator_id: coordinatorId || ''
-      }));
-    }
-  }, [isDialogOpen, userRole, userProfile, coordinators, locations]);
+  }, []);
 
   const handleInputChange = (e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement>) => {
     const { name, value } = e.target;
@@ -128,10 +99,6 @@ const Kilns = () => {
   };
 
   const handleSelectChange = (name: string, value: string) => {
-    if (userRole === 'coordinator' && (name === 'location_id' || name === 'coordinator_id')) {
-      return;
-    }
-    
     setFormData(prev => ({ ...prev, [name]: value }));
   };
 
@@ -139,23 +106,12 @@ const Kilns = () => {
     e.preventDefault();
     
     try {
-      let submissionData = {...formData};
-      if (userRole === 'coordinator' && userProfile?.coordinator) {
-        submissionData.coordinator_id = userProfile.coordinator.id;
-        submissionData.location_id = userProfile.coordinator.location_id || '';
-      }
-      
       const kilnData = {
-        ...submissionData,
-        capacity: submissionData.capacity ? parseFloat(submissionData.capacity) : null,
+        ...formData,
+        capacity: formData.capacity ? parseFloat(formData.capacity) : null,
       };
 
       if (selectedKiln) {
-        if (userRole === 'coordinator' && selectedKiln.coordinator_id !== userProfile?.coordinator?.id) {
-          toast.error("You don't have permission to edit this kiln");
-          return;
-        }
-        
         await kilnService.updateKiln(selectedKiln.id, kilnData);
         toast.success('Kiln updated successfully');
       } else {
@@ -175,11 +131,6 @@ const Kilns = () => {
   const handleDelete = async () => {
     if (!selectedKiln) return;
     
-    if (userRole === 'coordinator' && selectedKiln.coordinator_id !== userProfile?.coordinator?.id) {
-      toast.error("You don't have permission to delete this kiln");
-      return;
-    }
-    
     try {
       await kilnService.deleteKiln(selectedKiln.id);
       toast.success('Kiln deleted successfully');
@@ -192,34 +143,18 @@ const Kilns = () => {
   };
 
   const resetForm = () => {
-    if (userRole === 'coordinator' && userProfile?.coordinator) {
-      setFormData({
-        type: '',
-        capacity: '',
-        capacity_unit: 'kg',
-        location_id: userProfile.coordinator.location_id || '',
-        coordinator_id: userProfile.coordinator.id || '',
-        status: 'active',
-      });
-    } else {
-      setFormData({
-        type: '',
-        capacity: '',
-        capacity_unit: 'kg',
-        location_id: '',
-        coordinator_id: '',
-        status: 'active',
-      });
-    }
+    setFormData({
+      type: '',
+      capacity: '',
+      capacity_unit: 'kg',
+      location_id: '',
+      coordinator_id: '',
+      status: 'active',
+    });
     setSelectedKiln(null);
   };
 
   const openEditDialog = (kiln: Kiln) => {
-    if (userRole === 'coordinator' && kiln.coordinator_id !== userProfile?.coordinator?.id) {
-      toast.error("You don't have permission to edit this kiln");
-      return;
-    }
-    
     setSelectedKiln(kiln);
     setFormData({
       type: kiln.type || '',
@@ -233,11 +168,6 @@ const Kilns = () => {
   };
 
   const openDeleteDialog = (kiln: Kiln) => {
-    if (userRole === 'coordinator' && kiln.coordinator_id !== userProfile?.coordinator?.id) {
-      toast.error("You don't have permission to delete this kiln");
-      return;
-    }
-    
     setSelectedKiln(kiln);
     setIsDeleteDialogOpen(true);
   };
@@ -359,6 +289,7 @@ const Kilns = () => {
         </CardContent>
       </Card>
 
+      {/* Create/Edit Dialog */}
       <Dialog open={isDialogOpen} onOpenChange={setIsDialogOpen}>
         <DialogContent className="sm:max-w-[500px]">
           <DialogHeader>
@@ -414,65 +345,41 @@ const Kilns = () => {
                 <Label htmlFor="location_id" className="text-right">
                   Location
                 </Label>
-                {userRole === 'coordinator' ? (
-                  <div className="col-span-3">
-                    <Input 
-                      value={locations.find(l => l.id === formData.location_id)?.name || 'Not assigned'} 
-                      readOnly 
-                      disabled
-                      className="bg-muted"
-                    />
-                  </div>
-                ) : (
-                  <Select 
-                    value={formData.location_id} 
-                    onValueChange={(value) => handleSelectChange('location_id', value)}
-                    required
-                  >
-                    <SelectTrigger className="col-span-3">
-                      <SelectValue placeholder="Select a location" />
-                    </SelectTrigger>
-                    <SelectContent>
-                      {locations.map((location) => (
-                        <SelectItem key={location.id} value={location.id}>
-                          {location.name}
-                        </SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
-                )}
+                <Select 
+                  value={formData.location_id} 
+                  onValueChange={(value) => handleSelectChange('location_id', value)}
+                >
+                  <SelectTrigger className="col-span-3">
+                    <SelectValue placeholder="Select a location" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {locations.map((location) => (
+                      <SelectItem key={location.id} value={location.id}>
+                        {location.name}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
               </div>
               <div className="grid grid-cols-4 items-center gap-4">
                 <Label htmlFor="coordinator_id" className="text-right">
                   Coordinator
                 </Label>
-                {userRole === 'coordinator' ? (
-                  <div className="col-span-3">
-                    <Input 
-                      value={coordinators.find(c => c.id === formData.coordinator_id)?.name || 'Not assigned'} 
-                      readOnly 
-                      disabled
-                      className="bg-muted"
-                    />
-                  </div>
-                ) : (
-                  <Select 
-                    value={formData.coordinator_id} 
-                    onValueChange={(value) => handleSelectChange('coordinator_id', value)}
-                    required
-                  >
-                    <SelectTrigger className="col-span-3">
-                      <SelectValue placeholder="Select a coordinator" />
-                    </SelectTrigger>
-                    <SelectContent>
-                      {coordinators.map((coordinator) => (
-                        <SelectItem key={coordinator.id} value={coordinator.id}>
-                          {coordinator.name}
-                        </SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
-                )}
+                <Select 
+                  value={formData.coordinator_id} 
+                  onValueChange={(value) => handleSelectChange('coordinator_id', value)}
+                >
+                  <SelectTrigger className="col-span-3">
+                    <SelectValue placeholder="Select a coordinator" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {coordinators.map((coordinator) => (
+                      <SelectItem key={coordinator.id} value={coordinator.id}>
+                        {coordinator.name}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
               </div>
               <div className="grid grid-cols-4 items-center gap-4">
                 <Label htmlFor="status" className="text-right">
@@ -505,6 +412,7 @@ const Kilns = () => {
         </DialogContent>
       </Dialog>
 
+      {/* Delete Confirmation Dialog */}
       <Dialog open={isDeleteDialogOpen} onOpenChange={setIsDeleteDialogOpen}>
         <DialogContent>
           <DialogHeader>
