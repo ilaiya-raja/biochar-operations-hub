@@ -1,6 +1,7 @@
 
+// Update the access to coordinator.location_id in Farmers.tsx to fix the build errors
 import { useState, useEffect } from 'react';
-import { Plus, Pencil, Trash2, Search, Users } from 'lucide-react';
+import { Plus, Pencil, Trash2, Search, User } from 'lucide-react';
 import { Input } from '@/components/ui/input';
 import { Button } from '@/components/ui/button';
 import { toast } from 'sonner';
@@ -33,34 +34,38 @@ import {
   SelectTrigger,
   SelectValue,
 } from '@/components/ui/select';
-import { Label } from '@/components/ui/label';
+import { z } from 'zod';
+import { zodResolver } from '@hookform/resolvers/zod';
+import { useForm } from 'react-hook-form';
+import {
+  Form,
+  FormControl,
+  FormField,
+  FormItem,
+  FormLabel,
+  FormMessage,
+} from '@/components/ui/form';
 import { Spinner } from '@/components/Spinner';
-import { supabase } from '@/lib/supabase';
+import {
+  farmerService,
+  locationService,
+  coordinatorService,
+  Farmer,
+  Location,
+  Coordinator
+} from '@/services/supabase-service';
 import { useAuth } from '@/contexts/AuthContext';
 
-interface Farmer {
-  id: string;
-  name: string;
-  phone: string;
-  email?: string;
-  address?: string;
-  location_id: string;
-  coordinator_id: string;
-  location?: Location;
-  coordinator?: Coordinator;
-  created_at: string;
-  updated_at: string;
-}
+const formSchema = z.object({
+  name: z.string().min(2, { message: 'Name must be at least 2 characters.' }),
+  phone: z.string().min(2, { message: 'Phone is required.' }),
+  email: z.string().email({ message: 'Invalid email address.' }).optional().or(z.literal('')),
+  address: z.string().optional(),
+  location_id: z.string().min(1, { message: 'Location is required.' }),
+  coordinator_id: z.string().min(1, { message: 'Coordinator is required.' }),
+});
 
-interface Location {
-  id: string;
-  name: string;
-}
-
-interface Coordinator {
-  id: string;
-  name: string;
-}
+type FormValues = z.infer<typeof formSchema>;
 
 const Farmers = () => {
   const [farmers, setFarmers] = useState<Farmer[]>([]);
@@ -68,197 +73,98 @@ const Farmers = () => {
   const [coordinators, setCoordinators] = useState<Coordinator[]>([]);
   const [loading, setLoading] = useState(true);
   const [searchQuery, setSearchQuery] = useState('');
-  const [isDialogOpen, setIsDialogOpen] = useState(false);
   const [isDeleteDialogOpen, setIsDeleteDialogOpen] = useState(false);
+  const [isFormDialogOpen, setIsFormDialogOpen] = useState(false);
   const [selectedFarmer, setSelectedFarmer] = useState<Farmer | null>(null);
-  const [formData, setFormData] = useState({
-    name: '',
-    phone: '',
-    email: '',
-    address: '',
-    location_id: '',
-    coordinator_id: '',
-  });
-  const [formErrors, setFormErrors] = useState({
-    name: false,
-    phone: false,
-    location_id: false,
-    coordinator_id: false,
-  });
-  const { userRole } = useAuth();
-  const [coordinatorProfile, setCoordinatorProfile] = useState<Coordinator | null>(null);
+  const { userRole, userProfile } = useAuth();
 
-  const fetchFarmers = async () => {
+  const form = useForm<FormValues>({
+    resolver: zodResolver(formSchema),
+    defaultValues: {
+      name: '',
+      phone: '',
+      email: '',
+      address: '',
+      location_id: '',
+      coordinator_id: '',
+    },
+  });
+
+  const fetchData = async () => {
     setLoading(true);
     try {
-      const { data, error } = await supabase
-        .from('farmers')
-        .select('*, location:locations(id, name), coordinator:coordinators(id, name)')
-        .order('name');
+      const [farmersData, locationsData, coordinatorsData] = await Promise.all([
+        farmerService.getFarmers(),
+        locationService.getLocations(),
+        coordinatorService.getCoordinators()
+      ]);
       
-      if (error) throw error;
-      setFarmers(data || []);
+      let filteredFarmers = farmersData || [];
+      let filteredLocations = locationsData || [];
+      let filteredCoordinators = coordinatorsData || [];
+      
+      // If user is a coordinator, filter data to only show their farmers
+      if (userRole === 'coordinator' && userProfile?.coordinator) {
+        filteredFarmers = filteredFarmers.filter(
+          farmer => farmer.coordinator_id === userProfile.coordinator.id
+        );
+        
+        // For coordinator, only show their location
+        if (userProfile.coordinator.location_id) {
+          filteredLocations = filteredLocations.filter(
+            location => location.id === userProfile.coordinator.location_id
+          );
+        }
+        
+        // For coordinator, only show themselves in the coordinators list
+        filteredCoordinators = filteredCoordinators.filter(
+          coordinator => coordinator.id === userProfile.coordinator.id
+        );
+      }
+      
+      setFarmers(filteredFarmers);
+      setLocations(filteredLocations);
+      setCoordinators(filteredCoordinators);
     } catch (error) {
-      console.error('Error fetching farmers:', error);
-      toast.error('Failed to load farmers');
+      console.error('Error fetching data:', error);
+      toast.error('Failed to load data');
     } finally {
       setLoading(false);
     }
   };
 
-  const fetchLocations = async () => {
-    try {
-      const { data, error } = await supabase
-        .from('locations')
-        .select('id, name')
-        .order('name');
-      
-      if (error) throw error;
-      setLocations(data || []);
-    } catch (error) {
-      console.error('Error fetching locations:', error);
-      toast.error('Failed to load locations');
-    }
-  };
-
-  const fetchCoordinators = async () => {
-    try {
-      const { data, error } = await supabase
-        .from('coordinators')
-        .select('id, name')
-        .order('name');
-      
-      if (error) throw error;
-      setCoordinators(data || []);
-    } catch (error) {
-      console.error('Error fetching coordinators:', error);
-      toast.error('Failed to load coordinators');
-    }
-  };
-
-  const fetchCoordinatorProfile = async () => {
-    if (userRole !== 'coordinator') return;
-
-    try {
-      // Get the current user
-      const { data: { user } } = await supabase.auth.getUser();
-      if (!user) return;
-
-      // Find the coordinator profile by matching email
-      const { data, error } = await supabase
-        .from('coordinators')
-        .select('id, name, location_id')
-        .eq('email', user.email)
-        .single();
-      
-      if (error) {
-        console.error('Error fetching coordinator profile:', error);
-        return;
-      }
-      
-      if (data) {
-        setCoordinatorProfile(data);
-        // Pre-set the form data with coordinator's values
-        setFormData(prev => ({
-          ...prev,
-          coordinator_id: data.id,
-          location_id: data.location_id || ''
-        }));
-      }
-    } catch (error) {
-      console.error('Error fetching coordinator profile:', error);
-    }
-  };
-
   useEffect(() => {
-    fetchFarmers();
-    fetchLocations();
-    fetchCoordinators();
-    fetchCoordinatorProfile();
-  }, [userRole]);
+    fetchData();
+  }, [userRole, userProfile]);
 
-  const handleInputChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-    const { name, value } = e.target;
-    setFormData(prev => ({ ...prev, [name]: value }));
-    
-    // Clear error for this field if it exists
-    if (formErrors[name as keyof typeof formErrors]) {
-      setFormErrors(prev => ({ ...prev, [name]: false }));
-    }
-  };
-
-  const handleSelectChange = (name: string, value: string) => {
-    setFormData(prev => ({ ...prev, [name]: value }));
-    
-    // Clear error for this field if it exists
-    if (formErrors[name as keyof typeof formErrors]) {
-      setFormErrors(prev => ({ ...prev, [name]: false }));
-    }
-  };
-
-  const validateForm = () => {
-    const errors = {
-      name: !formData.name,
-      phone: !formData.phone,
-      location_id: !formData.location_id,
-      coordinator_id: !formData.coordinator_id,
-    };
-    
-    setFormErrors(errors);
-    return !Object.values(errors).some(Boolean);
-  };
-
-  const handleSubmit = async (e: React.FormEvent) => {
-    e.preventDefault();
-    
-    if (!validateForm()) {
-      toast.error('Please fill in all required fields');
-      return;
-    }
-
-    // If user is a coordinator, override location_id and coordinator_id with their own
-    const submissionData = { ...formData };
-    if (userRole === 'coordinator' && coordinatorProfile) {
-      submissionData.coordinator_id = coordinatorProfile.id;
-      submissionData.location_id = coordinatorProfile.location_id || formData.location_id;
-    }
-
+  const onSubmit = async (data: FormValues) => {
     try {
+      // If user is coordinator, force their coordinator ID and location
+      let submissionData = {...data};
+      if (userRole === 'coordinator' && userProfile?.coordinator) {
+        submissionData.coordinator_id = userProfile.coordinator.id;
+        if (userProfile.coordinator.location_id) {
+          submissionData.location_id = userProfile.coordinator.location_id;
+        }
+      }
+      
       if (selectedFarmer) {
-        const { error } = await supabase
-          .from('farmers')
-          .update({
-            name: submissionData.name,
-            phone: submissionData.phone,
-            email: submissionData.email || null,
-            address: submissionData.address || null,
-            location_id: submissionData.location_id,
-            coordinator_id: submissionData.coordinator_id,
-            updated_at: new Date().toISOString(),
-          })
-          .eq('id', selectedFarmer.id);
-
-        if (error) throw error;
+        // Check if coordinator has permission to edit this farmer
+        if (userRole === 'coordinator' && selectedFarmer.coordinator_id !== userProfile?.coordinator?.id) {
+          toast.error("You don't have permission to edit this farmer");
+          return;
+        }
+        
+        await farmerService.updateFarmer(selectedFarmer.id, submissionData);
         toast.success('Farmer updated successfully');
       } else {
-        const { error } = await supabase
-          .from('farmers')
-          .insert({
-            name: submissionData.name,
-            phone: submissionData.phone,
-            email: submissionData.email || null,
-            address: submissionData.address || null,
-            location_id: submissionData.location_id,
-            coordinator_id: submissionData.coordinator_id,
-          });
-
-        if (error) throw error;
+        await farmerService.createFarmer(submissionData);
         toast.success('Farmer added successfully');
       }
-
-      setIsDialogOpen(false);
-      resetForm();
-      fetchFarmers();
+      
+      setIsFormDialogOpen(false);
+      form.reset();
+      fetchData();
     } catch (error) {
       console.error('Error saving farmer:', error);
       toast.error('Failed to save farmer');
@@ -267,76 +173,67 @@ const Farmers = () => {
 
   const handleDelete = async () => {
     if (!selectedFarmer) return;
-
+    
+    // Check if coordinator has permission to delete this farmer
+    if (userRole === 'coordinator' && selectedFarmer.coordinator_id !== userProfile?.coordinator?.id) {
+      toast.error("You don't have permission to delete this farmer");
+      return;
+    }
+    
     try {
-      const { error } = await supabase
-        .from('farmers')
-        .delete()
-        .eq('id', selectedFarmer.id);
-
-      if (error) throw error;
+      await farmerService.deleteFarmer(selectedFarmer.id);
       toast.success('Farmer deleted successfully');
       setIsDeleteDialogOpen(false);
-      fetchFarmers();
+      fetchData();
     } catch (error) {
       console.error('Error deleting farmer:', error);
       toast.error('Failed to delete farmer');
     }
   };
 
-  const resetForm = () => {
-    const initialFormData = {
-      name: '',
-      phone: '',
-      email: '',
-      address: '',
-      location_id: '',
-      coordinator_id: '',
-    };
-
-    // If user is a coordinator, pre-set their ID and location
-    if (userRole === 'coordinator' && coordinatorProfile) {
-      initialFormData.coordinator_id = coordinatorProfile.id;
-      initialFormData.location_id = coordinatorProfile.location_id || '';
-    }
-
-    setFormData(initialFormData);
-    setFormErrors({
-      name: false,
-      phone: false,
-      location_id: false,
-      coordinator_id: false,
-    });
+  const openCreateDialog = () => {
     setSelectedFarmer(null);
+    
+    // If user is coordinator, pre-fill their coordinator ID and location
+    if (userRole === 'coordinator' && userProfile?.coordinator) {
+      form.reset({
+        name: '',
+        phone: '',
+        email: '',
+        address: '',
+        location_id: userProfile.coordinator.location_id || '',
+        coordinator_id: userProfile.coordinator.id,
+      });
+    } else {
+      form.reset();
+    }
+    
+    setIsFormDialogOpen(true);
   };
 
   const openEditDialog = (farmer: Farmer) => {
-    setSelectedFarmer(farmer);
+    // Check if coordinator has permission to edit this farmer
+    if (userRole === 'coordinator' && farmer.coordinator_id !== userProfile?.coordinator?.id) {
+      toast.error("You don't have permission to edit this farmer");
+      return;
+    }
     
-    // Start with the farmer data
-    let editFormData = {
+    setSelectedFarmer(farmer);
+    form.reset({
       name: farmer.name,
       phone: farmer.phone,
       email: farmer.email || '',
       address: farmer.address || '',
       location_id: farmer.location_id,
       coordinator_id: farmer.coordinator_id,
-    };
-    
-    // If user is a coordinator, enforce their ID and location
-    if (userRole === 'coordinator' && coordinatorProfile) {
-      editFormData.coordinator_id = coordinatorProfile.id;
-      editFormData.location_id = coordinatorProfile.location_id || farmer.location_id;
-    }
-    
-    setFormData(editFormData);
-    setIsDialogOpen(true);
+    });
+    setIsFormDialogOpen(true);
   };
 
   const openDeleteDialog = (farmer: Farmer) => {
-    // Only allow delete if admin or if coordinator owns this farmer
-    if (userRole === 'coordinator' && farmer.coordinator_id !== coordinatorProfile?.id) {
-      toast.error("You can only delete farmers assigned to you");
+    // Check if coordinator has permission to delete this farmer
+    if (userRole === 'coordinator' && farmer.coordinator_id !== userProfile?.coordinator?.id) {
+      toast.error("You don't have permission to delete this farmer");
       return;
     }
     
@@ -346,18 +243,11 @@ const Farmers = () => {
 
   const filteredFarmers = farmers.filter(farmer =>
     farmer.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
-    farmer.id.toLowerCase().includes(searchQuery.toLowerCase()) ||
-    (farmer.phone && farmer.phone.includes(searchQuery)) ||
     (farmer.email && farmer.email.toLowerCase().includes(searchQuery.toLowerCase())) ||
+    farmer.phone.toLowerCase().includes(searchQuery.toLowerCase()) ||
     (farmer.location?.name && farmer.location.name.toLowerCase().includes(searchQuery.toLowerCase())) ||
     (farmer.coordinator?.name && farmer.coordinator.name.toLowerCase().includes(searchQuery.toLowerCase()))
-  ).filter(farmer => {
-    // If coordinator, only show their farmers
-    if (userRole === 'coordinator' && coordinatorProfile) {
-      return farmer.coordinator_id === coordinatorProfile.id;
-    }
-    return true;
-  });
+  );
 
   return (
     <div className="space-y-6">
@@ -365,13 +255,10 @@ const Farmers = () => {
         <div>
           <h1 className="text-3xl font-bold tracking-tight">Farmer Master</h1>
           <p className="text-muted-foreground">
-            Manage all farmers who are part of the biochar program
+            Manage farmers participating in the biochar project
           </p>
         </div>
-        <Button onClick={() => {
-          resetForm();
-          setIsDialogOpen(true);
-        }}>
+        <Button onClick={openCreateDialog}>
           <Plus className="mr-2 h-4 w-4" /> Add Farmer
         </Button>
       </div>
@@ -390,7 +277,7 @@ const Farmers = () => {
         <CardHeader>
           <CardTitle>Farmers</CardTitle>
           <CardDescription>
-            A list of all farmers managed in the system
+            A list of all farmers registered in the system
           </CardDescription>
         </CardHeader>
         <CardContent>
@@ -402,9 +289,9 @@ const Farmers = () => {
             <Table>
               <TableHeader>
                 <TableRow>
-                  <TableHead>Farmer ID</TableHead>
                   <TableHead>Name</TableHead>
                   <TableHead>Phone</TableHead>
+                  <TableHead>Email</TableHead>
                   <TableHead>Location</TableHead>
                   <TableHead>Coordinator</TableHead>
                   <TableHead className="text-right">Actions</TableHead>
@@ -420,14 +307,14 @@ const Farmers = () => {
                 ) : (
                   filteredFarmers.map((farmer) => (
                     <TableRow key={farmer.id}>
-                      <TableCell className="font-mono text-xs">{farmer.id.slice(0, 8)}</TableCell>
                       <TableCell className="font-medium">
                         <div className="flex items-center">
-                          <Users className="mr-2 h-4 w-4 text-muted-foreground" />
+                          <User className="mr-2 h-4 w-4 text-blue-500" />
                           {farmer.name}
                         </div>
                       </TableCell>
                       <TableCell>{farmer.phone}</TableCell>
+                      <TableCell>{farmer.email || '-'}</TableCell>
                       <TableCell>{farmer.location?.name || '-'}</TableCell>
                       <TableCell>{farmer.coordinator?.name || '-'}</TableCell>
                       <TableCell className="text-right">
@@ -458,91 +345,83 @@ const Farmers = () => {
       </Card>
 
       {/* Create/Edit Dialog */}
-      <Dialog open={isDialogOpen} onOpenChange={setIsDialogOpen}>
+      <Dialog open={isFormDialogOpen} onOpenChange={setIsFormDialogOpen}>
         <DialogContent className="sm:max-w-[500px]">
           <DialogHeader>
             <DialogTitle>
               {selectedFarmer ? 'Edit Farmer' : 'Add New Farmer'}
             </DialogTitle>
           </DialogHeader>
-          <form onSubmit={handleSubmit}>
-            <div className="grid gap-4 py-4">
-              <div className="grid grid-cols-4 items-center gap-4">
-                <Label htmlFor="name" className="text-right">
-                  Name *
-                </Label>
-                <Input
-                  id="name"
-                  name="name"
-                  value={formData.name}
-                  onChange={handleInputChange}
-                  className={`col-span-3 ${formErrors.name ? 'border-red-500' : ''}`}
-                />
-                {formErrors.name && (
-                  <div className="col-span-3 col-start-2 text-xs text-red-500">
-                    Name is required
-                  </div>
+          <Form {...form}>
+            <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-4">
+              <FormField
+                control={form.control}
+                name="name"
+                render={({ field }) => (
+                  <FormItem>
+                    <FormLabel>Name</FormLabel>
+                    <FormControl>
+                      <Input placeholder="Enter farmer name" {...field} />
+                    </FormControl>
+                    <FormMessage />
+                  </FormItem>
                 )}
-              </div>
-              <div className="grid grid-cols-4 items-center gap-4">
-                <Label htmlFor="phone" className="text-right">
-                  Phone *
-                </Label>
-                <Input
-                  id="phone"
-                  name="phone"
-                  value={formData.phone}
-                  onChange={handleInputChange}
-                  className={`col-span-3 ${formErrors.phone ? 'border-red-500' : ''}`}
-                />
-                {formErrors.phone && (
-                  <div className="col-span-3 col-start-2 text-xs text-red-500">
-                    Phone is required
-                  </div>
+              />
+              <FormField
+                control={form.control}
+                name="phone"
+                render={({ field }) => (
+                  <FormItem>
+                    <FormLabel>Phone</FormLabel>
+                    <FormControl>
+                      <Input placeholder="Enter phone number" {...field} />
+                    </FormControl>
+                    <FormMessage />
+                  </FormItem>
                 )}
-              </div>
-              <div className="grid grid-cols-4 items-center gap-4">
-                <Label htmlFor="email" className="text-right">
-                  Email
-                </Label>
-                <Input
-                  id="email"
-                  name="email"
-                  type="email"
-                  value={formData.email}
-                  onChange={handleInputChange}
-                  className="col-span-3"
-                />
-              </div>
-              <div className="grid grid-cols-4 items-center gap-4">
-                <Label htmlFor="address" className="text-right">
-                  Address
-                </Label>
-                <Input
-                  id="address"
-                  name="address"
-                  value={formData.address}
-                  onChange={handleInputChange}
-                  className="col-span-3"
-                />
-              </div>
-              
-              {userRole === 'admin' ? (
-                <>
-                  <div className="grid grid-cols-4 items-center gap-4">
-                    <Label htmlFor="location_id" className="text-right">
-                      Location *
-                    </Label>
+              />
+              <FormField
+                control={form.control}
+                name="email"
+                render={({ field }) => (
+                  <FormItem>
+                    <FormLabel>Email (Optional)</FormLabel>
+                    <FormControl>
+                      <Input placeholder="Enter email" {...field} />
+                    </FormControl>
+                    <FormMessage />
+                  </FormItem>
+                )}
+              />
+              <FormField
+                control={form.control}
+                name="address"
+                render={({ field }) => (
+                  <FormItem>
+                    <FormLabel>Address (Optional)</FormLabel>
+                    <FormControl>
+                      <Input placeholder="Enter address" {...field} />
+                    </FormControl>
+                    <FormMessage />
+                  </FormItem>
+                )}
+              />
+              <FormField
+                control={form.control}
+                name="location_id"
+                render={({ field }) => (
+                  <FormItem>
+                    <FormLabel>Location</FormLabel>
                     <Select
-                      value={formData.location_id}
-                      onValueChange={(value) => handleSelectChange('location_id', value)}
+                      disabled={userRole === 'coordinator'}
+                      onValueChange={field.onChange}
+                      value={field.value}
                     >
-                      <SelectTrigger
-                        id="location_id"
-                        className={`col-span-3 ${formErrors.location_id ? 'border-red-500' : ''}`}
-                      >
-                        <SelectValue placeholder="Select location" />
-                      </SelectTrigger>
+                      <FormControl>
+                        <SelectTrigger>
+                          <SelectValue placeholder="Select a location" />
+                        </SelectTrigger>
+                      </FormControl>
                       <SelectContent>
                         {locations.map((location) => (
                           <SelectItem key={location.id} value={location.id}>
@@ -551,26 +430,26 @@ const Farmers = () => {
                         ))}
                       </SelectContent>
                     </Select>
-                    {formErrors.location_id && (
-                      <div className="col-span-3 col-start-2 text-xs text-red-500">
-                        Location is required
-                      </div>
-                    )}
-                  </div>
-                  <div className="grid grid-cols-4 items-center gap-4">
-                    <Label htmlFor="coordinator_id" className="text-right">
-                      Coordinator *
-                    </Label>
+                    <FormMessage />
+                  </FormItem>
+                )}
+              />
+              <FormField
+                control={form.control}
+                name="coordinator_id"
+                render={({ field }) => (
+                  <FormItem>
+                    <FormLabel>Coordinator</FormLabel>
                     <Select
-                      value={formData.coordinator_id}
-                      onValueChange={(value) => handleSelectChange('coordinator_id', value)}
+                      disabled={userRole === 'coordinator'}
+                      onValueChange={field.onChange}
+                      value={field.value}
                     >
-                      <SelectTrigger
-                        id="coordinator_id"
-                        className={`col-span-3 ${formErrors.coordinator_id ? 'border-red-500' : ''}`}
-                      >
-                        <SelectValue placeholder="Select coordinator" />
-                      </SelectTrigger>
+                      <FormControl>
+                        <SelectTrigger>
+                          <SelectValue placeholder="Select a coordinator" />
+                        </SelectTrigger>
+                      </FormControl>
                       <SelectContent>
                         {coordinators.map((coordinator) => (
                           <SelectItem key={coordinator.id} value={coordinator.id}>
@@ -579,44 +458,24 @@ const Farmers = () => {
                         ))}
                       </SelectContent>
                     </Select>
-                    {formErrors.coordinator_id && (
-                      <div className="col-span-3 col-start-2 text-xs text-red-500">
-                        Coordinator is required
-                      </div>
-                    )}
-                  </div>
-                </>
-              ) : (
-                <>
-                  {/* For coordinators, display read-only fields */}
-                  <div className="grid grid-cols-4 items-center gap-4">
-                    <Label htmlFor="location_display" className="text-right">
-                      Location
-                    </Label>
-                    <div className="col-span-3 px-3 py-2 border rounded bg-gray-50">
-                      {locations.find(l => l.id === formData.location_id)?.name || 'Your assigned location'}
-                    </div>
-                  </div>
-                  <div className="grid grid-cols-4 items-center gap-4">
-                    <Label htmlFor="coordinator_display" className="text-right">
-                      Coordinator
-                    </Label>
-                    <div className="col-span-3 px-3 py-2 border rounded bg-gray-50">
-                      {coordinatorProfile?.name || 'You'}
-                    </div>
-                  </div>
-                </>
-              )}
-            </div>
-            <DialogFooter>
-              <Button type="button" variant="outline" onClick={() => setIsDialogOpen(false)}>
-                Cancel
-              </Button>
-              <Button type="submit">
-                {selectedFarmer ? 'Update' : 'Add'} Farmer
-              </Button>
-            </DialogFooter>
-          </form>
+                    <FormMessage />
+                  </FormItem>
+                )}
+              />
+              <DialogFooter>
+                <Button
+                  type="button"
+                  variant="outline"
+                  onClick={() => setIsFormDialogOpen(false)}
+                >
+                  Cancel
+                </Button>
+                <Button type="submit">
+                  {selectedFarmer ? 'Update' : 'Add'} Farmer
+                </Button>
+              </DialogFooter>
+            </form>
+          </Form>
         </DialogContent>
       </Dialog>
 
@@ -626,9 +485,15 @@ const Farmers = () => {
           <DialogHeader>
             <DialogTitle>Confirm Deletion</DialogTitle>
           </DialogHeader>
-          <p>Are you sure you want to delete this farmer? This action cannot be undone.</p>
+          <p>
+            Are you sure you want to delete this farmer? This action cannot be
+            undone.
+          </p>
           <DialogFooter>
-            <Button variant="outline" onClick={() => setIsDeleteDialogOpen(false)}>
+            <Button
+              variant="outline"
+              onClick={() => setIsDeleteDialogOpen(false)}
+            >
               Cancel
             </Button>
             <Button variant="destructive" onClick={handleDelete}>
