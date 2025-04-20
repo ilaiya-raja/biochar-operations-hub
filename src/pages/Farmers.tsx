@@ -77,6 +77,10 @@ const Farmers = () => {
   const [isFormDialogOpen, setIsFormDialogOpen] = useState(false);
   const [selectedFarmer, setSelectedFarmer] = useState<Farmer | null>(null);
   const { userRole, userProfile } = useAuth();
+  
+  // State to store the coordinator's location and name for display
+  const [coordinatorLocationName, setCoordinatorLocationName] = useState<string>('');
+  const [coordinatorName, setCoordinatorName] = useState<string>('');
 
   const form = useForm<FormValues>({
     resolver: zodResolver(formSchema),
@@ -114,12 +118,28 @@ const Farmers = () => {
           filteredLocations = filteredLocations.filter(
             location => location.id === userProfile.coordinator.location_id
           );
+          
+          // Find and store the coordinator's location name
+          const coordinatorLocation = locationsData?.find(
+            location => location.id === userProfile.coordinator.location_id
+          );
+          if (coordinatorLocation) {
+            setCoordinatorLocationName(coordinatorLocation.name);
+          }
         }
         
         // For coordinator, only show themselves in the coordinators list
         filteredCoordinators = filteredCoordinators.filter(
           coordinator => coordinator.id === userProfile.coordinator.id
         );
+        
+        // Find and store the coordinator's name
+        const coordinator = coordinatorsData?.find(
+          coordinator => coordinator.id === userProfile.coordinator.id
+        );
+        if (coordinator) {
+          setCoordinatorName(coordinator.name);
+        }
       }
       
       setFarmers(filteredFarmers);
@@ -412,24 +432,33 @@ const Farmers = () => {
                 render={({ field }) => (
                   <FormItem>
                     <FormLabel>Location</FormLabel>
-                    <Select
-                      disabled={userRole === 'coordinator'}
-                      onValueChange={field.onChange}
-                      value={field.value}
-                    >
+                    {userRole === 'coordinator' ? (
                       <FormControl>
-                        <SelectTrigger>
-                          <SelectValue placeholder="Select a location" />
-                        </SelectTrigger>
+                        <Input 
+                          value={coordinatorLocationName || "Not assigned"} 
+                          disabled 
+                          className="bg-muted"
+                        />
                       </FormControl>
-                      <SelectContent>
-                        {locations.map((location) => (
-                          <SelectItem key={location.id} value={location.id}>
-                            {location.name}
-                          </SelectItem>
-                        ))}
-                      </SelectContent>
-                    </Select>
+                    ) : (
+                      <Select
+                        onValueChange={field.onChange}
+                        value={field.value}
+                      >
+                        <FormControl>
+                          <SelectTrigger>
+                            <SelectValue placeholder="Select a location" />
+                          </SelectTrigger>
+                        </FormControl>
+                        <SelectContent>
+                          {locations.map((location) => (
+                            <SelectItem key={location.id} value={location.id}>
+                              {location.name}
+                            </SelectItem>
+                          ))}
+                        </SelectContent>
+                      </Select>
+                    )}
                     <FormMessage />
                   </FormItem>
                 )}
@@ -440,24 +469,33 @@ const Farmers = () => {
                 render={({ field }) => (
                   <FormItem>
                     <FormLabel>Coordinator</FormLabel>
-                    <Select
-                      disabled={userRole === 'coordinator'}
-                      onValueChange={field.onChange}
-                      value={field.value}
-                    >
+                    {userRole === 'coordinator' ? (
                       <FormControl>
-                        <SelectTrigger>
-                          <SelectValue placeholder="Select a coordinator" />
-                        </SelectTrigger>
+                        <Input 
+                          value={coordinatorName || "Not assigned"} 
+                          disabled 
+                          className="bg-muted"
+                        />
                       </FormControl>
-                      <SelectContent>
-                        {coordinators.map((coordinator) => (
-                          <SelectItem key={coordinator.id} value={coordinator.id}>
-                            {coordinator.name}
-                          </SelectItem>
-                        ))}
-                      </SelectContent>
-                    </Select>
+                    ) : (
+                      <Select
+                        onValueChange={field.onChange}
+                        value={field.value}
+                      >
+                        <FormControl>
+                          <SelectTrigger>
+                            <SelectValue placeholder="Select a coordinator" />
+                          </SelectTrigger>
+                        </FormControl>
+                        <SelectContent>
+                          {coordinators.map((coordinator) => (
+                            <SelectItem key={coordinator.id} value={coordinator.id}>
+                              {coordinator.name}
+                            </SelectItem>
+                          ))}
+                        </SelectContent>
+                      </Select>
+                    )}
                     <FormMessage />
                   </FormItem>
                 )}
