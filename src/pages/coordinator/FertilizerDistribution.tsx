@@ -25,9 +25,20 @@ const FertilizerDistribution = () => {
   useEffect(() => {
     const fetchData = async () => {
       try {
+        // Get farmers from coordinator's location
+        const farmersQuery = supabase
+          .from('farmers')
+          .select('id, name');
+        
+        // Get available fertilizers
+        const fertilizersQuery = supabase
+          .from('fertilizers')
+          .select('id, name, type, quantity')
+          .eq('status', 'available');
+        
         const [farmersResponse, fertilizersResponse] = await Promise.all([
-          supabase.from('farmers').select('id, name'),
-          supabase.from('fertilizers').select('id, name, type, quantity').where('status', 'eq', 'available')
+          farmersQuery,
+          fertilizersQuery
         ]);
 
         if (farmersResponse.data) setFarmers(farmersResponse.data);
