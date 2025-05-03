@@ -546,13 +546,31 @@ const Fertilizers = () => {
                 <Label htmlFor="location_id" className="text-right">
                   Location
                 </Label>
-                <Input
-                  id="location_id"
-                  name="location_id"
-                  value={locations.find(loc => loc.id === formData.location_id)?.name || ''}
-                  className="col-span-3"
-                  disabled
-                />
+                {coordinatorProfile ? (
+                  <Input
+                    id="location_id"
+                    name="location_id"
+                    value={locations.find(loc => loc.id === formData.location_id)?.name || ''}
+                    className="col-span-3"
+                    disabled
+                  />
+                ) : (
+                  <select
+                    id="location_id"
+                    name="location_id"
+                    value={formData.location_id}
+                    onChange={handleInputChange}
+                    className="px-3 py-2 border rounded-md col-span-3"
+                    required
+                  >
+                    <option value="">Select a location</option>
+                    {locations.map(location => (
+                      <option key={location.id} value={location.id}>
+                        {location.name}
+                      </option>
+                    ))}
+                  </select>
+                )}
               </div>
 
               {/* Coordinator field */}
