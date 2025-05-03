@@ -2,6 +2,8 @@
 import { toast } from "sonner";
 import { supabase } from "@/lib/supabase";
 
+export { supabase };
+
 // Location types
 export interface Location {
   id: string;
