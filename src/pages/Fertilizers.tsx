@@ -29,6 +29,7 @@ import {
 import { Label } from '@/components/ui/label';
 import { Spinner } from '@/components/Spinner';
 import { supabase } from '@/lib/supabase';
+import { useAuth } from '@/contexts/AuthContext';
 
 interface Fertilizer {
   id: string;
@@ -40,6 +41,24 @@ interface Fertilizer {
   quantity_unit: string;
   status: string;
   created_at: string;
+  location_id?: string;     // Add this line
+  coordinator_id?: string;  // Add this line
+}
+
+// Add these interfaces after the Fertilizer interface
+interface Location {
+  id: string;
+  name: string;
+}
+
+interface Coordinator {
+  id: string;
+  name: string;
+  location_id: string;  // Add this line
+  locations?: {        // Add this optional property
+    id: string;
+    name: string;
+  };
 }
 
 const Fertilizers = () => {
@@ -49,6 +68,11 @@ const Fertilizers = () => {
   const [isDialogOpen, setIsDialogOpen] = useState(false);
   const [isDeleteDialogOpen, setIsDeleteDialogOpen] = useState(false);
   const [selectedFertilizer, setSelectedFertilizer] = useState<Fertilizer | null>(null);
+  const [locations, setLocations] = useState<Location[]>([]);
+  const [coordinators, setCoordinators] = useState<Coordinator[]>([]);
+  const [coordinatorProfile, setCoordinatorProfile] = useState<Coordinator | null>(null);
+  
+  // Update formData to include new fields
   const [formData, setFormData] = useState({
     name: '',
     type: '',
@@ -56,17 +80,49 @@ const Fertilizers = () => {
     produced_date: '',
     quantity: '',
     quantity_unit: 'kg',
-    status: 'available'
+    status: 'available',
+    location_id: '',
+    coordinator_id: ''
   });
 
   const fetchFertilizers = async () => {
     setLoading(true);
     try {
-      const { data, error } = await supabase
+      const { data: { user } } = await supabase.auth.getUser();
+      if (!user) return;
+  
+      // Check if user is admin
+      const { data: adminData } = await supabase
+        .from('admins')
+        .select('id')
+        .eq('email', user.email)
+        .single();
+  
+      let query = supabase
         .from('fertilizers')
         .select('*')
         .order('created_at', { ascending: false });
-
+  
+      if (adminData) {
+        // Admin user - fetch all fertilizers without any filters
+        const { data, error } = await query;
+        if (error) throw error;
+        setFertilizers(data || []);
+        return;
+      }
+  
+      // If not admin, filter by coordinator's location
+      const { data: coordinatorData } = await supabase
+        .from('coordinators')
+        .select('location_id')
+        .eq('email', user.email)
+        .single();
+  
+      if (coordinatorData?.location_id) {
+        query = query.eq('location_id', coordinatorData.location_id);
+      }
+  
+      const { data, error } = await query;
       if (error) throw error;
       setFertilizers(data || []);
     } catch (error) {
@@ -77,8 +133,90 @@ const Fertilizers = () => {
     }
   };
 
+  const fetchLocations = async () => {
+    try {
+      const { data, error } = await supabase
+        .from('locations')
+        .select('id, name')
+        .order('name');
+      
+      if (error) throw error;
+      setLocations(data || []);
+    } catch (error) {
+      console.error('Error fetching locations:', error);
+      toast.error('Failed to load locations');
+    }
+  };
+
+  const fetchCoordinators = async () => {
+    try {
+      const { data, error } = await supabase
+        .from('coordinators')
+        .select('id, name, location_id')  // Add location_id to the select
+        .order('name');
+      
+      if (error) throw error;
+      // Transform the data to match the Coordinator interface
+      const coordinatorsData: Coordinator[] = (data || []).map(coord => ({
+        id: coord.id,
+        name: coord.name,
+        location_id: coord.location_id
+      }));
+      setCoordinators(coordinatorsData);
+    } catch (error) {
+      console.error('Error fetching coordinators:', error);
+      toast.error('Failed to load coordinators');
+    }
+  };
+
+  const fetchCoordinatorProfile = async () => {
+    try {
+      const { data: { user } } = await supabase.auth.getUser();
+      if (!user) return;
+
+      const { data, error } = await supabase
+        .from('coordinators')
+        .select(`
+          id, 
+          name,
+          location_id,
+          locations:location_id (
+            id,
+            name
+          )
+        `)
+        .eq('email', user.email)
+        .single();
+      
+      if (error) throw error;
+      
+      if (data) {
+        const coordinatorData: Coordinator = {
+          id: data.id,
+          name: data.name,
+          location_id: data.location_id,
+          locations: data.locations?.[0] ? {
+            id: data.locations[0].id,
+            name: data.locations[0].name
+          } : undefined
+        };
+        setCoordinatorProfile(coordinatorData);
+        setFormData(prev => ({
+          ...prev,
+          coordinator_id: data.id,
+          location_id: data.location_id || ''
+        }));
+      }
+    } catch (error) {
+      console.error('Error fetching coordinator profile:', error);
+    }
+  };
+
   useEffect(() => {
     fetchFertilizers();
+    fetchLocations();
+    fetchCoordinators();
+    fetchCoordinatorProfile();
   }, []);
 
   const handleInputChange = (e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement>) => {
@@ -89,9 +227,17 @@ const Fertilizers = () => {
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     try {
+      // Only include fields that exist in the database
       const fertilizerData = {
-        ...formData,
-        quantity: parseFloat(formData.quantity)
+        name: formData.name,
+        type: formData.type,
+        batch_number: formData.batch_number,
+        produced_date: formData.produced_date,
+        quantity: parseFloat(formData.quantity),
+        quantity_unit: formData.quantity_unit,
+        status: formData.status,
+        location_id: formData.location_id
+        // Remove coordinator_id as it's not in the database schema
       };
 
       if (selectedFertilizer) {
@@ -147,7 +293,9 @@ const Fertilizers = () => {
       produced_date: '',
       quantity: '',
       quantity_unit: 'kg',
-      status: 'available'
+      status: 'available',
+      location_id: coordinatorProfile?.location_id || '',
+      coordinator_id: coordinatorProfile?.id || ''
     });
     setSelectedFertilizer(null);
   };
@@ -161,7 +309,9 @@ const Fertilizers = () => {
       produced_date: fertilizer.produced_date ? new Date(fertilizer.produced_date).toISOString().split('T')[0] : '',
       quantity: fertilizer.quantity.toString(),
       quantity_unit: fertilizer.quantity_unit,
-      status: fertilizer.status
+      status: fertilizer.status,
+      location_id: coordinatorProfile?.location_id || '',
+      coordinator_id: coordinatorProfile?.id || ''
     });
     setIsDialogOpen(true);
   };
@@ -227,13 +377,14 @@ const Fertilizers = () => {
                   <TableHead>Batch</TableHead>
                   <TableHead>Quantity</TableHead>
                   <TableHead>Status</TableHead>
+                  <TableHead>Location</TableHead>
                   <TableHead className="text-right">Actions</TableHead>
                 </TableRow>
               </TableHeader>
               <TableBody>
                 {filteredFertilizers.length === 0 ? (
                   <TableRow>
-                    <TableCell colSpan={7} className="text-center">
+                    <TableCell colSpan={8} className="text-center">
                       No fertilizers found
                     </TableCell>
                   </TableRow>
@@ -253,6 +404,9 @@ const Fertilizers = () => {
                         }`}>
                           {fertilizer.status}
                         </span>
+                      </TableCell>
+                      <TableCell>
+                        {locations.find(loc => loc.id === fertilizer.location_id)?.name || '-'}
                       </TableCell>
                       <TableCell className="text-right">
                         <div className="flex justify-end gap-2">
@@ -385,6 +539,52 @@ const Fertilizers = () => {
                   <option value="reserved">Reserved</option>
                   <option value="used">Used</option>
                 </select>
+              </div>
+
+              {/* Location field */}
+              <div className="grid grid-cols-4 items-center gap-4">
+                <Label htmlFor="location_id" className="text-right">
+                  Location
+                </Label>
+                {coordinatorProfile ? (
+                  <Input
+                    id="location_id"
+                    name="location_id"
+                    value={locations.find(loc => loc.id === formData.location_id)?.name || ''}
+                    className="col-span-3"
+                    disabled
+                  />
+                ) : (
+                  <select
+                    id="location_id"
+                    name="location_id"
+                    value={formData.location_id}
+                    onChange={handleInputChange}
+                    className="px-3 py-2 border rounded-md col-span-3"
+                    required
+                  >
+                    <option value="">Select a location</option>
+                    {locations.map(location => (
+                      <option key={location.id} value={location.id}>
+                        {location.name}
+                      </option>
+                    ))}
+                  </select>
+                )}
+              </div>
+
+              {/* Coordinator field */}
+              <div className="grid grid-cols-4 items-center gap-4">
+                <Label htmlFor="coordinator_id" className="text-right">
+                  Coordinator
+                </Label>
+                <Input
+                  id="coordinator_id"
+                  name="coordinator_id"
+                  value={coordinators.find(coord => coord.id === formData.coordinator_id)?.name || ''}
+                  className="col-span-3"
+                  disabled
+                />
               </div>
             </div>
             <DialogFooter>
