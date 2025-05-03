@@ -20,6 +20,7 @@ import BiomassCollection from "@/pages/coordinator/BiomassCollection";
 import PyrolysisProcess from "@/pages/coordinator/PyrolysisProcess";
 import FertilizerDistribution from "@/pages/coordinator/FertilizerDistribution";
 import ResetPassword from "@/pages/ResetPassword";
+import SetPassword from "@/pages/set-password";
 
 const queryClient = new QueryClient();
 
@@ -34,6 +35,7 @@ const App = () => (
             <Route path="/" element={<Navigate to="/dashboard" replace />} />
             <Route path="/login" element={<Login />} />
             <Route path="/reset-password" element={<ResetPassword />} />
+          <Route path="/set-password" element={<SetPassword />} />
             
             <Route element={<PrivateRoute />}>
               <Route element={<DashboardLayout />}>

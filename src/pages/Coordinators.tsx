@@ -54,6 +54,7 @@ import {
   locationService 
 } from '@/services/supabase-service';
 import { useAuth } from '@/contexts/AuthContext';
+import { createClient } from '@supabase/supabase-js';
 
 const formSchema = z.object({
   name: z.string().min(2, { message: 'Name must be at least 2 characters.' }),
@@ -114,52 +115,70 @@ const Coordinators = () => {
         if (values.email) {
           setInviteLoading(true);
           try {
-            console.log('Sending invitation to:', values.email);
-            const session = await supabase.auth.getSession();
-            const accessToken = session.data.session?.access_token;
-            
-            if (!accessToken) {
-              throw new Error('No access token available');
-            }
-            
-            // Use the full URL including the project ID for the Supabase edge function
-            const response = await fetch('https://axwhpqvnsqpdqidameqa.functions.supabase.co/send-invite', {
-              method: 'POST',
-              headers: {
-                'Content-Type': 'application/json',
-                Authorization: `Bearer ${accessToken}`,
-              },
-              body: JSON.stringify({
-                email: values.email,
-                name: values.name,
-              }),
-            });
+            // Create a Supabase admin client with service role key
+            const supabaseAdmin = createClient(
+              import.meta.env.VITE_SUPABASE_URL!,
+              import.meta.env.VITE_SUPABASE_SERVICE_ROLE_KEY!,
+            );
 
-            // First check if the response is ok before parsing JSON
-            if (!response.ok) {
-              const errorText = await response.text();
-              console.error('Error response:', errorText);
-              throw new Error(`Request failed with status ${response.status}: ${errorText || response.statusText}`);
+            console.log('Generating magic link for coordinator:', values.email);
+            
+            // Function to delay execution
+            const delay = (ms: number) => new Promise(resolve => setTimeout(resolve, ms));
+            
+            // Try to send magic link with retry logic
+            let retryCount = 0;
+            const maxRetries = 2; // Maximum number of retries
+            
+            while (retryCount <= maxRetries) {
+              try {
+                // Send the magic link email
+                const { error: emailError } = await supabaseAdmin.auth.signInWithOtp({
+                  email: values.email,
+                  options: {
+                    data: {
+                      name: values.name,
+                      role: 'coordinator'
+                    },
+                    emailRedirectTo: `${import.meta.env.VITE_APP_URL}/login`
+                  }
+                });
+
+                if (!emailError) {
+                  console.log('Magic link sent successfully');
+                  break; // Success - exit the retry loop
+                }
+
+                // Check if it's a rate limit error
+                if (emailError.message.includes('59 seconds') || emailError.message.includes('rate limit')) {
+                  if (retryCount < maxRetries) {
+                    console.log(`Rate limit hit, waiting 60 seconds before retry ${retryCount + 1}`);
+                    await delay(60000); // Wait for 60 seconds before retrying
+                    retryCount++;
+                    continue;
+                  }
+                }
+
+                throw emailError; // Throw other errors
+              } catch (error: any) {
+                if (retryCount === maxRetries) {
+                  console.error('Magic link error after retries:', error);
+                  throw error;
+                }
+                retryCount++;
+              }
             }
+
+            toast.success('Coordinator created and magic link sent successfully');
+          } catch (error: any) {
+            console.error('Magic link error:', error);
             
-            // Now safely parse the JSON
-            const result = await response.json();
-            
-            if (!result.success) {
-              throw new Error(result.error || 'Unknown error occurred');
-            }
-            
-            console.log('Invitation response:', result);
-            toast.success(result.message || 'Coordinator created successfully');
-            
-          } catch (error) {
-            console.error('Invitation error:', error);
-            
-            // Check if it's a "user already exists" error which is actually a success case
-            if (error.message && error.message.includes('already been registered')) {
-              toast.success('Coordinator created and role assigned (user already exists)');
+            // Check if it's a "user already exists" error
+            if (error?.message && error.message.includes('already been registered')) {
+              toast.success('Coordinator created successfully (user already exists)');
             } else {
-              toast.error(`Created coordinator but failed to send invitation: ${error.message}`);
+              const errorMessage = error?.message || 'Unknown error occurred';
+              toast.error(`Created coordinator but failed to send magic link: ${errorMessage}`);
             }
           } finally {
             setInviteLoading(false);
@@ -173,9 +192,10 @@ const Coordinators = () => {
       setIsFormDialogOpen(false);
       form.reset();
       setSelectedCoordinator(null);
-    } catch (error) {
+    } catch (error: any) {
       console.error('Error:', error);
-      toast.error('Failed to process coordinator');
+      const errorMessage = error?.message || 'Unknown error occurred';
+      toast.error(`Failed to process coordinator: ${errorMessage}`);
     }
   };
 
