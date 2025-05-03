@@ -22,10 +22,7 @@ export const PrivateRoute = ({ allowedRoles }: PrivateRouteProps) => {
     return <Navigate to="/login" replace />;
   }
 
-  // Allow coordinators to access the same pages as admin
-  const effectiveRole = userRole === 'coordinator' ? 'admin' : userRole;
-  
-  if (allowedRoles && !allowedRoles.includes(effectiveRole ?? '')) {
+  if (allowedRoles && !allowedRoles.includes(userRole ?? '')) {
     return <Navigate to="/dashboard" replace />;
   }
 

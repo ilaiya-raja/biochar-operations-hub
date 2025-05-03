@@ -21,25 +21,48 @@ const FertilizerDistribution = () => {
     quantityUnit: 'kg'
   });
 
+  console.log('User Profile:', userProfile);
+  console.log('Location ID:', userProfile?.location_id);
+
   // Fetch farmers and fertilizers when component mounts
   useEffect(() => {
     const fetchData = async () => {
+      if (!userProfile) {
+        console.error('User profile not loaded');
+        toast.error('Unable to load user profile');
+        return;
+      }
+
+      if (!userProfile.location_id) {
+        console.error('Location ID not found in user profile');
+        toast.error('Location information not available');
+        return;
+      }
+
       try {
+        console.log('Fetching data with location:', userProfile.location_id);
         // Get farmers from coordinator's location
         const farmersQuery = supabase
           .from('farmers')
-          .select('id, name');
+          .select('id, name')
+          .eq('location_id', userProfile.location_id)
+          .order('name');
         
         // Get available fertilizers
         const fertilizersQuery = supabase
           .from('fertilizers')
           .select('id, name, type, quantity')
-          .eq('status', 'available');
+          .eq('status', 'available')
+          .eq('location_id', userProfile.location_id)
+          .order('name');
         
         const [farmersResponse, fertilizersResponse] = await Promise.all([
           farmersQuery,
           fertilizersQuery
         ]);
+
+        console.log('Farmers Response:', farmersResponse);
+        console.log('Fertilizers Response:', fertilizersResponse);
 
         if (farmersResponse.data) setFarmers(farmersResponse.data);
         if (fertilizersResponse.data) setFertilizers(fertilizersResponse.data);
@@ -50,7 +73,7 @@ const FertilizerDistribution = () => {
     };
 
     fetchData();
-  }, []);
+  }, [userProfile]);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -67,26 +90,54 @@ const FertilizerDistribution = () => {
       }
 
       // Record fertilizer distribution
-      const { error: distributionError } = await supabase.from('fertilizer_distributions').insert({
+      console.log('Creating distribution record with:', {
         farmer_id: formData.farmerId,
-        coordinator_id: userProfile?.coordinator?.id,
+        coordinator_id: userProfile?.id,
         fertilizer_id: formData.fertilizerId,
         quantity: requestedQuantity,
         quantity_unit: formData.quantityUnit
       });
+      
+      const { data: distributionData, error: distributionError } = await supabase.from('fertilizer_distributions').insert({
+        farmer_id: formData.farmerId,
+        coordinator_id: userProfile?.id,
+        fertilizer_id: formData.fertilizerId,
+        quantity: requestedQuantity,
+        quantity_unit: formData.quantityUnit
+      }).select();
 
-      if (distributionError) throw distributionError;
+      if (distributionError) {
+        console.error('Distribution Error:', distributionError);
+        throw distributionError;
+      }
+      
+      console.log('Distribution record created:', distributionData);
 
       // Update fertilizer quantity
-      const { error: fertilizersError } = await supabase
+      const newQuantity = selectedFertilizer.quantity - requestedQuantity;
+      const newStatus = newQuantity <= 0 ? 'depleted' : 'available';
+      
+      console.log('Updating fertilizer with:', {
+        id: formData.fertilizerId,
+        newQuantity,
+        newStatus
+      });
+      
+      const { data: updatedFertilizer, error: fertilizersError } = await supabase
         .from('fertilizers')
         .update({ 
-          quantity: selectedFertilizer.quantity - requestedQuantity,
-          status: selectedFertilizer.quantity - requestedQuantity <= 0 ? 'depleted' : 'available'
+          quantity: newQuantity,
+          status: newStatus
         })
-        .eq('id', formData.fertilizerId);
+        .eq('id', formData.fertilizerId)
+        .select();
 
-      if (fertilizersError) throw fertilizersError;
+      if (fertilizersError) {
+        console.error('Fertilizer Update Error:', fertilizersError);
+        throw fertilizersError;
+      }
+      
+      console.log('Fertilizer updated:', updatedFertilizer);
 
       toast.success('Fertilizer distributed successfully');
       setFormData({
@@ -95,9 +146,20 @@ const FertilizerDistribution = () => {
         quantity: '',
         quantityUnit: 'kg'
       });
-    } catch (error) {
-      console.error('Error:', error);
-      toast.error('Failed to record fertilizer distribution');
+    } catch (error: any) {
+      console.error('Error in fertilizer distribution:', error);
+      const errorMessage = error?.message || error?.details || 'Failed to record fertilizer distribution';
+      toast.error(errorMessage);
+      
+      // Reset form only on specific errors
+      if (error?.code === 'PGRST116' || error?.code === '23503') {
+        setFormData({
+          farmerId: '',
+          fertilizerId: '',
+          quantity: '',
+          quantityUnit: 'kg'
+        });
+      }
     } finally {
       setLoading(false);
     }

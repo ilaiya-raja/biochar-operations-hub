@@ -216,7 +216,7 @@ const Fertilizers = () => {
     fetchFertilizers();
     fetchLocations();
     fetchCoordinators();
-    fetchCoordinatorProfile(); // Add this line
+    fetchCoordinatorProfile();
   }, []);
 
   const handleInputChange = (e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement>) => {
