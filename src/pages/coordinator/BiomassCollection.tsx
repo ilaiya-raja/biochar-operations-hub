@@ -3,63 +3,114 @@ import { useState, useEffect } from 'react';
 import { useAuth } from '@/contexts/AuthContext';
 import { Card, CardHeader, CardTitle, CardContent } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
-
 import { toast } from 'sonner';
 import { supabase } from '@/lib/supabase';
+import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
+import { format } from 'date-fns';
+import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
+import { Plus } from 'lucide-react';
 
 const BiomassCollection = () => {
   const { userProfile } = useAuth();
   const [loading, setLoading] = useState(false);
+  const [fetchingData, setFetchingData] = useState(true);
   const [farmers, setFarmers] = useState([]);
-  const [biomassTypes] = useState([
-    { id: '11111111-1111-1111-1111-111111111111', name: 'Rice Straw' },
-    { id: '22222222-2222-2222-2222-222222222222', name: 'Wheat Straw' },
-    { id: '33333333-3333-3333-3333-333333333333', name: 'Corn Stover' },
-    { id: '44444444-4444-4444-4444-444444444444', name: 'Sugarcane Bagasse' },
-    { id: '55555555-5555-5555-5555-555555555555', name: 'Coconut Shells' },
-    { id: '66666666-6666-6666-6666-666666666666', name: 'Wood Chips' },
-    { id: '77777777-7777-7777-7777-777777777777', name: 'Bamboo Waste' },
-    { id: '88888888-8888-8888-8888-888888888888', name: 'Cotton Stalks' }
-  ]);
+  const [biomassTypes, setBiomassTypes] = useState([]);
+  const [collections, setCollections] = useState([]);
+  const [isDialogOpen, setIsDialogOpen] = useState(false);
   const [formData, setFormData] = useState({
     farmerId: '',
     biomassTypeId: '',
     quantity: '',
     quantityUnit: 'kg',
-    // photoUrl: '',
     collectionDate: new Date().toISOString()
   });
+  
+  // Add debugging state
+  const [fetchError, setFetchError] = useState(null);
+
+  const fetchCollections = async () => {
+    try {
+      const { data, error } = await supabase
+        .from('biomass_collections')
+        .select(`
+          *,
+          farmer:farmer_id(name),
+          biomass_type:biomass_type_id(name)
+        `)
+        .eq('coordinator_id', userProfile?.id)
+        .order('collection_date', { ascending: false });
+
+      if (error) throw error;
+      setCollections(data || []);
+    } catch (error) {
+      console.error('Error fetching collections:', error);
+      toast.error('Failed to load collections');
+    }
+  };
 
   useEffect(() => {
     const fetchData = async () => {
+      setFetchingData(true);
+      setFetchError(null);
+      
       try {
-        // Fetch farmers based on coordinator's location
-        const { data: farmersData, error: farmersError } = await supabase
-          .from('farmers')
+        console.log('Starting data fetch...');
+        
+        // Fetch biomass types from database
+        console.log('Fetching biomass types...');
+        const { data: biomassTypesData, error: biomassTypesError } = await supabase
+          .from('biomass_types')
           .select('id, name')
-          .eq('location_id', userProfile?.location_id)
           .order('name');
 
-        if (farmersError) throw farmersError;
-        setFarmers(farmersData || []);
+        if (biomassTypesError) {
+          console.error('Biomass types error:', biomassTypesError);
+          setFetchError(biomassTypesError.message);
+          throw biomassTypesError;
+        }
+        
+        console.log('Biomass types fetched:', biomassTypesData);
+        setBiomassTypes(biomassTypesData || []);
+        
+        // Only fetch farmers if userProfile is available
+        if (userProfile?.location_id) {
+          console.log('Fetching farmers for location:', userProfile.location_id);
+          // Fetch farmers based on coordinator's location
+          const { data: farmersData, error: farmersError } = await supabase
+            .from('farmers')
+            .select('id, name')
+            .eq('location_id', userProfile.location_id)
+            .order('name');
 
-        // Static biomass types are now used instead of fetching from database
+          if (farmersError) {
+            console.error('Farmers error:', farmersError);
+            setFetchError(farmersError.message);
+            throw farmersError;
+          }
+          
+          console.log('Farmers fetched:', farmersData);
+          setFarmers(farmersData || []);
+        }
+
+        // Fetch collections
+        await fetchCollections();
       } catch (error) {
         console.error('Error fetching data:', error);
-        toast.error('Failed to load form data');
+        toast.error(`Failed to load form data: ${error.message}`);
+      } finally {
+        setFetchingData(false);
       }
     };
 
-    if (userProfile?.location_id) {
-      fetchData();
-    }
-  }, [userProfile?.location_id]);
+    fetchData();
+  }, [userProfile?.location_id, userProfile?.id]);
 
-  const handleSubmit = async (e: React.FormEvent) => {
+  const handleSubmit = async (e) => {
     e.preventDefault();
     setLoading(true);
 
-    if (!userProfile?.coordinator?.id) {
+    if (!userProfile?.id) {
       toast.error('Coordinator ID not found');
       setLoading(false);
       return;
@@ -69,10 +120,9 @@ const BiomassCollection = () => {
       const { data, error } = await supabase.from('biomass_collections').insert({
         farmer_id: formData.farmerId,
         biomass_type_id: formData.biomassTypeId,
-        coordinator_id: userProfile?.coordinator?.id,
+        coordinator_id: userProfile.id,
         quantity: parseFloat(formData.quantity),
         quantity_unit: formData.quantityUnit,
-        // photo_url: formData.photoUrl || null,
         collection_date: formData.collectionDate
       }).select();
 
@@ -89,11 +139,12 @@ const BiomassCollection = () => {
         biomassTypeId: '',
         quantity: '',
         quantityUnit: 'kg',
-        // photoUrl: '',
         collectionDate: new Date().toISOString()
       });
+      setIsDialogOpen(false);
+      fetchCollections(); // Refresh the collections list
     } catch (error) {
-      toast.error('Failed to record biomass collection');
+      toast.error(`Failed to record biomass collection: ${error.message}`);
       console.error('Error:', error);
     } finally {
       setLoading(false);
@@ -102,13 +153,65 @@ const BiomassCollection = () => {
 
   return (
     <div className="space-y-6">
-      <h1 className="text-2xl font-bold">Record Biomass Collection</h1>
+      <div className="flex justify-between items-center">
+        <h1 className="text-2xl font-bold">Biomass Collections</h1>
+        <Button onClick={() => setIsDialogOpen(true)}>
+          <Plus className="mr-2 h-4 w-4" /> Add Collection
+        </Button>
+      </div>
+      
+      {fetchError && (
+        <div className="bg-red-100 border border-red-400 text-red-700 px-4 py-3 rounded">
+          <p>Error loading data: {fetchError}</p>
+        </div>
+      )}
       
       <Card>
         <CardHeader>
-          <CardTitle>Collection Details</CardTitle>
+          <CardTitle>Recent Collections</CardTitle>
         </CardHeader>
         <CardContent>
+          {fetchingData ? (
+            <div className="text-center py-4">Loading data...</div>
+          ) : (
+            <Table>
+              <TableHeader>
+                <TableRow>
+                  <TableHead>Date</TableHead>
+                  <TableHead>Farmer</TableHead>
+                  <TableHead>Biomass Type</TableHead>
+                  <TableHead>Quantity</TableHead>
+                </TableRow>
+              </TableHeader>
+              <TableBody>
+                {collections.map((collection) => (
+                  <TableRow key={collection.id}>
+                    <TableCell>
+                      {format(new Date(collection.collection_date), 'PPp')}
+                    </TableCell>
+                    <TableCell>{collection.farmer?.name}</TableCell>
+                    <TableCell>{collection.biomass_type?.name}</TableCell>
+                    <TableCell>{collection.quantity} {collection.quantity_unit}</TableCell>
+                  </TableRow>
+                ))}
+                {collections.length === 0 && (
+                  <TableRow>
+                    <TableCell colSpan={4} className="text-center">
+                      No collections recorded yet
+                    </TableCell>
+                  </TableRow>
+                )}
+              </TableBody>
+            </Table>
+          )}
+        </CardContent>
+      </Card>
+
+      <Dialog open={isDialogOpen} onOpenChange={setIsDialogOpen}>
+        <DialogContent className="sm:max-w-[600px]">
+          <DialogHeader>
+            <DialogTitle>Record Biomass Collection</DialogTitle>
+          </DialogHeader>
           <form onSubmit={handleSubmit} className="space-y-4">
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
               <div className="space-y-2">
@@ -127,6 +230,9 @@ const BiomassCollection = () => {
                     </option>
                   ))}
                 </select>
+                <p className="text-xs text-gray-500">
+                  {farmers.length === 0 && 'No farmers available for your location'}
+                </p>
               </div>
 
               <div className="space-y-2">
@@ -145,8 +251,11 @@ const BiomassCollection = () => {
                     </option>
                   ))}
                 </select>
+                <p className="text-xs text-gray-500">
+                  {biomassTypes.length === 0 && 'No biomass types available'}
+                </p>
               </div>
-
+              
               <div className="space-y-2">
                 <label htmlFor="quantity" className="text-sm font-medium">Quantity</label>
                 <input
@@ -187,26 +296,14 @@ const BiomassCollection = () => {
                   required
                 />
               </div>
-
-              {/* <div className="space-y-2">
-                <label htmlFor="photoUrl" className="text-sm font-medium">Photo URL (Optional)</label>
-                <input
-                  type="url"
-                  id="photoUrl"
-                  value={formData.photoUrl}
-                  onChange={(e) => setFormData({ ...formData, photoUrl: e.target.value })}
-                  className="w-full p-2 border rounded-md"
-                  placeholder="https://example.com/photo.jpg"
-                />
-              </div> */}
             </div>
 
             <Button type="submit" disabled={loading} className="w-full mt-6">
               {loading ? 'Recording...' : 'Record Collection'}
             </Button>
           </form>
-        </CardContent>
-      </Card>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 };
