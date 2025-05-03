@@ -11,7 +11,16 @@ const BiomassCollection = () => {
   const { userProfile } = useAuth();
   const [loading, setLoading] = useState(false);
   const [farmers, setFarmers] = useState([]);
-  const [biomassTypes, setBiomassTypes] = useState([]);
+  const [biomassTypes] = useState([
+    { id: '11111111-1111-1111-1111-111111111111', name: 'Rice Straw' },
+    { id: '22222222-2222-2222-2222-222222222222', name: 'Wheat Straw' },
+    { id: '33333333-3333-3333-3333-333333333333', name: 'Corn Stover' },
+    { id: '44444444-4444-4444-4444-444444444444', name: 'Sugarcane Bagasse' },
+    { id: '55555555-5555-5555-5555-555555555555', name: 'Coconut Shells' },
+    { id: '66666666-6666-6666-6666-666666666666', name: 'Wood Chips' },
+    { id: '77777777-7777-7777-7777-777777777777', name: 'Bamboo Waste' },
+    { id: '88888888-8888-8888-8888-888888888888', name: 'Cotton Stalks' }
+  ]);
   const [formData, setFormData] = useState({
     farmerId: '',
     biomassTypeId: '',
@@ -34,14 +43,7 @@ const BiomassCollection = () => {
         if (farmersError) throw farmersError;
         setFarmers(farmersData || []);
 
-        // Fetch biomass types
-        const { data: typesData, error: typesError } = await supabase
-          .from('biomass_types')
-          .select('id, name')
-          .order('name');
-
-        if (typesError) throw typesError;
-        setBiomassTypes(typesData || []);
+        // Static biomass types are now used instead of fetching from database
       } catch (error) {
         console.error('Error fetching data:', error);
         toast.error('Failed to load form data');
@@ -56,6 +58,12 @@ const BiomassCollection = () => {
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setLoading(true);
+
+    if (!userProfile?.coordinator?.id) {
+      toast.error('Coordinator ID not found');
+      setLoading(false);
+      return;
+    }
 
     try {
       const { data, error } = await supabase.from('biomass_collections').insert({
