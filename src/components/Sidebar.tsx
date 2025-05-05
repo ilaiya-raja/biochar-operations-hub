@@ -9,7 +9,10 @@ import {
   PackageIcon, 
   SproutIcon, 
   Users, 
-  UserCog
+  UserCog,
+  Trees,
+  Tractor,
+  Truck
 } from 'lucide-react';
 import { useAuth } from '@/contexts/AuthContext';
 import { useEffect } from 'react';
@@ -33,17 +36,18 @@ export const Sidebar = ({ isOpen }: SidebarProps) => {
       name: 'Master Management', 
       children: [
         { name: 'Biomass Master', href: '/biomass', icon: Leaf },
+        { name: 'Biomass Types', href: '/biomass-types', icon: Trees },
         { name: 'Location Master', href: '/locations', icon: MapPin },
         { name: 'Coordinator Master', href: '/coordinators', icon: UserCog },
         { name: 'Farmer Master', href: '/farmers', icon: Users },
         { name: 'Kiln Master', href: '/kilns', icon: FlameIcon },
       ]
     },
-    { name: 'Biochar Fertilizer', href: '/fertilizer', icon: SproutIcon },
     ...(userRole === 'coordinator' ? [
       { name: 'Biomass Collection', href: '/biomass-collection', icon: Leaf },
       { name: 'Pyrolysis Process', href: '/pyrolysis', icon: FlameIcon },
-      { name: 'Fertilizer Distribution', href: '/fertilizer-distribution', icon: SproutIcon },
+      { name: 'Biochar Fertilizer', href: '/fertilizer', icon: Tractor },
+      { name: 'Fertilizer Distribution', href: '/fertilizer-distribution', icon: Truck },
     ] : [])
   ];
   

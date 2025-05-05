@@ -1,4 +1,3 @@
-
 import { useState, useEffect } from 'react';
 import { useAuth } from '@/contexts/AuthContext';
 import { Card, CardHeader, CardTitle, CardContent } from '@/components/ui/card';
@@ -23,11 +22,21 @@ const BiomassCollection = () => {
     biomassTypeId: '',
     quantity: '',
     quantityUnit: 'kg',
-    collectionDate: new Date().toISOString()
+    collectionDate: format(new Date(), "yyyy-MM-dd'T'HH:mm")
   });
   
   // Add debugging state
   const [fetchError, setFetchError] = useState(null);
+
+  // Update the collection date whenever dialog opens
+  useEffect(() => {
+    if (isDialogOpen) {
+      setFormData(current => ({
+        ...current,
+        collectionDate: format(new Date(), "yyyy-MM-dd'T'HH:mm")
+      }));
+    }
+  }, [isDialogOpen]);
 
   const fetchCollections = async () => {
     try {
@@ -134,12 +143,13 @@ const BiomassCollection = () => {
       console.log('Recorded biomass collection:', data);
 
       toast.success('Biomass collection recorded successfully');
+      // In the handleSubmit function, update the reset form data
       setFormData({
         farmerId: '',
         biomassTypeId: '',
         quantity: '',
         quantityUnit: 'kg',
-        collectionDate: new Date().toISOString()
+        collectionDate: format(new Date(), "yyyy-MM-dd'T'HH:mm")
       });
       setIsDialogOpen(false);
       fetchCollections(); // Refresh the collections list
@@ -187,7 +197,7 @@ const BiomassCollection = () => {
                 {collections.map((collection) => (
                   <TableRow key={collection.id}>
                     <TableCell>
-                      {format(new Date(collection.collection_date), 'PPp')}
+                      {format(new Date(collection.collection_date), 'PP p')}
                     </TableCell>
                     <TableCell>{collection.farmer?.name}</TableCell>
                     <TableCell>{collection.biomass_type?.name}</TableCell>
@@ -290,8 +300,8 @@ const BiomassCollection = () => {
                 <input
                   type="datetime-local"
                   id="collectionDate"
-                  value={formData.collectionDate.slice(0, 16)}
-                  onChange={(e) => setFormData({ ...formData, collectionDate: new Date(e.target.value).toISOString() })}
+                  value={formData.collectionDate}
+                  onChange={(e) => setFormData({ ...formData, collectionDate: e.target.value })}
                   className="w-full p-2 border rounded-md"
                   required
                 />
