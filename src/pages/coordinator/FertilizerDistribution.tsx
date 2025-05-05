@@ -89,22 +89,16 @@ const FertilizerDistribution = () => {
         return;
       }
 
-      // Record fertilizer distribution
-      console.log('Creating distribution record with:', {
-        farmer_id: formData.farmerId,
-        coordinator_id: userProfile?.id,
-        fertilizer_id: formData.fertilizerId,
-        quantity: requestedQuantity,
-        quantity_unit: formData.quantityUnit
-      });
-      
-      const { data: distributionData, error: distributionError } = await supabase.from('fertilizer_distributions').insert({
-        farmer_id: formData.farmerId,
-        coordinator_id: userProfile?.id,
-        fertilizer_id: formData.fertilizerId,
-        quantity: requestedQuantity,
-        quantity_unit: formData.quantityUnit
-      }).select();
+      // Record fertilizer distribution and update fertilizer quantity in a transaction
+      const { data: distributionData, error: distributionError } = await supabase
+        .rpc('create_fertilizer_distribution', {
+          p_farmer_id: formData.farmerId,
+          p_coordinator_id: userProfile?.id,
+          p_fertilizer_id: formData.fertilizerId,
+          p_quantity: requestedQuantity,
+          p_quantity_unit: formData.quantityUnit,
+          p_status: 'pending'
+        });
 
       if (distributionError) {
         console.error('Distribution Error:', distributionError);
@@ -112,32 +106,6 @@ const FertilizerDistribution = () => {
       }
       
       console.log('Distribution record created:', distributionData);
-
-      // Update fertilizer quantity
-      const newQuantity = selectedFertilizer.quantity - requestedQuantity;
-      const newStatus = newQuantity <= 0 ? 'depleted' : 'available';
-      
-      console.log('Updating fertilizer with:', {
-        id: formData.fertilizerId,
-        newQuantity,
-        newStatus
-      });
-      
-      const { data: updatedFertilizer, error: fertilizersError } = await supabase
-        .from('fertilizers')
-        .update({ 
-          quantity: newQuantity,
-          status: newStatus
-        })
-        .eq('id', formData.fertilizerId)
-        .select();
-
-      if (fertilizersError) {
-        console.error('Fertilizer Update Error:', fertilizersError);
-        throw fertilizersError;
-      }
-      
-      console.log('Fertilizer updated:', updatedFertilizer);
 
       toast.success('Fertilizer distributed successfully');
       setFormData({
