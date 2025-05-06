@@ -8,7 +8,7 @@ import { Select, SelectTrigger, SelectValue, SelectContent, SelectItem } from '@
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog';
 import { toast } from 'sonner';
 import { supabase } from '@/lib/supabase';
-
+ 
 interface Process {
   id: string;
   kiln_id: string;
@@ -20,11 +20,12 @@ interface Process {
   kilns: { name: string }; // Single object, not array
   biomass_types: { name: string }; // Single object, not array
 }
-
+ 
 interface PyrolysisProcessData {
   id?: string;
   kilnId: string;
   biomassTypeId: string;
+  farmerId?: string;  // Add this line
   coordinatorId?: string;
   startTime?: string;
   endTime?: string;
@@ -33,7 +34,7 @@ interface PyrolysisProcessData {
   createdAt?: string;
   updatedAt?: string;
 }
-
+ 
 interface BiomassCollection {
   id: string;
   biomass_type_id: string;
@@ -42,7 +43,7 @@ interface BiomassCollection {
     name: string;
   };
 }
-
+ 
 const PyrolysisProcess = () => {
   const { userProfile } = useAuth();
   const [loading, setLoading] = useState(false);
@@ -55,12 +56,13 @@ const PyrolysisProcess = () => {
   const [outputQuantity, setOutputQuantity] = useState<number>(0);
   const [totalAvailableQuantity, setTotalAvailableQuantity] = useState<number>(0);
   const [biomassCollections, setBiomassCollections] = useState<BiomassCollection[]>([]);
+  const [inventoryData, setInventoryData] = useState<any[]>([]);
   const [formData, setFormData] = useState<PyrolysisProcessData>({
     kilnId: '',
     biomassTypeId: '',
     inputQuantity: 0,
   });
-
+ 
   const fetchProcesses = async () => {
     try {
       const { data, error } = await supabase
@@ -77,7 +79,7 @@ const PyrolysisProcess = () => {
           biomass_types:biomass_type_id (name)
         `)
         .order('start_time', { ascending: false });
-  
+ 
       if (error) throw error;
       setProcesses((data || []) as unknown as Process[]);
     } catch (error) {
@@ -85,11 +87,11 @@ const PyrolysisProcess = () => {
       toast.error('Failed to load processes');
     }
   };
-
+ 
   // New function to fetch biomass collections
   const fetchBiomassCollections = async () => {
     if (!userProfile?.id) return;
-    
+ 
     try {
       const { data, error } = await supabase
         .from('biomass_collections')
@@ -101,7 +103,7 @@ const PyrolysisProcess = () => {
         `)
         .eq('coordinator_id', userProfile.id)
         .order('collection_date', { ascending: false });
-
+ 
       if (error) throw error;
       setBiomassCollections((data || []) as unknown as BiomassCollection[]);
     } catch (error) {
@@ -109,7 +111,31 @@ const PyrolysisProcess = () => {
       toast.error('Failed to load biomass collections');
     }
   };
-
+  useEffect(() => {
+    if (userProfile?.id) {
+      fetchInventoryData();
+    }
+  }, [userProfile?.id]);
+  const fetchInventoryData = async () => {
+    try {
+      const { data, error } = await supabase
+        .from('inventory')
+        .select(`
+          id,
+          farmer_id,
+          biomass_type_id,
+          quantity,
+          farmers:farmer_id(id, name)
+        `)
+        .eq('coordinator_id', userProfile?.id);
+ 
+      if (error) throw error;
+      setInventoryData(data || []);
+    } catch (error) {
+      console.error('Error fetching inventory:', error);
+      toast.error('Failed to load inventory data');
+    }
+  };
   const fetchFarmerCollection = async (farmerId: string) => {
     try {
       const { data, error } = await supabase
@@ -122,14 +148,14 @@ const PyrolysisProcess = () => {
         .order('collection_date', { ascending: false })
         .limit(1)
         .single();
-  
+ 
       if (error) {
         if (error.code !== 'PGRST116') { // No rows returned code
           throw error;
         }
         return;
       }
-  
+ 
       if (data) {
         setFormData(prev => ({
           ...prev,
@@ -142,39 +168,39 @@ const PyrolysisProcess = () => {
       toast.error('Failed to load farmer data');
     }
   };
-
+ 
   const fetchTotalAvailableQuantity = async (biomassTypeId: string) => {
     if (!biomassTypeId || !userProfile?.location_id) {
       setTotalAvailableQuantity(0);
       return;
     }
-
+ 
     try {
       // First get all farmers at this location
       const { data: farmersData, error: farmersError } = await supabase
         .from('farmers')
         .select('id')
         .eq('location_id', userProfile.location_id);
-      
+ 
       if (farmersError) throw farmersError;
-      
+ 
       if (!farmersData || farmersData.length === 0) {
         setTotalAvailableQuantity(0);
         return;
       }
-      
+ 
       // Get the farmer IDs
       const farmerIds = farmersData.map(farmer => farmer.id);
-      
+ 
       // Then query collections for these farmers with the selected biomass type
       const { data, error } = await supabase
         .from('biomass_collections')
         .select('quantity')
         .eq('biomass_type_id', biomassTypeId)
         .in('farmer_id', farmerIds);
-
+ 
       if (error) throw error;
-
+ 
       // Calculate the total quantity from all collections
       const total = data?.reduce((sum, item) => sum + (parseFloat(item.quantity) || 0), 0) || 0;
       setTotalAvailableQuantity(total);
@@ -183,7 +209,7 @@ const PyrolysisProcess = () => {
       setTotalAvailableQuantity(0);
     }
   };
-
+ 
   useEffect(() => {
     const fetchData = async () => {
       try {
@@ -193,10 +219,10 @@ const PyrolysisProcess = () => {
           .select('id, name')
           .eq('location_id', userProfile?.location_id)
           .order('name');
-
+ 
         if (farmersError) throw farmersError;
         setFarmers(farmersData || []);
-
+ 
         // Fetch kilns based on coordinator's location
         const { data: kilnsData, error: kilnsError } = await supabase
           .from('kilns')
@@ -204,22 +230,22 @@ const PyrolysisProcess = () => {
           .eq('location_id', userProfile?.location_id)
           .eq('status', 'active')
           .order('name');
-
+ 
         if (kilnsError) throw kilnsError;
         setKilns(kilnsData || []);
-
+ 
         // Fetch biomass types
         const { data: biomassTypesData, error: biomassTypesError } = await supabase
           .from('biomass_types')
           .select('id, name')
           .order('name');
-
+ 
         if (biomassTypesError) throw biomassTypesError;
         setBiomassTypes(biomassTypesData || []);
-
+ 
         // Fetch processes
         await fetchProcesses();
-        
+ 
         // Fetch biomass collections
         await fetchBiomassCollections();
       } catch (error) {
@@ -227,23 +253,72 @@ const PyrolysisProcess = () => {
         toast.error('Failed to load data');
       }
     };
-
+ 
     if (userProfile?.location_id) {
       fetchData();
     }
   }, [userProfile?.location_id, userProfile?.id]);
-
+ 
   useEffect(() => {
-    if (formData.biomassTypeId) {
-      fetchTotalAvailableQuantity(formData.biomassTypeId);
+    if (formData.biomassTypeId && formData.farmerId) {
+      const selectedInventory = inventoryData.find(
+        item => item.farmer_id === formData.farmerId && item.biomass_type_id === formData.biomassTypeId
+      );
+      setTotalAvailableQuantity(selectedInventory ? parseFloat(selectedInventory.quantity) : 0);
     } else {
       setTotalAvailableQuantity(0);
     }
-  }, [formData.biomassTypeId, userProfile?.location_id]);
-
+  }, [formData.biomassTypeId, formData.farmerId, inventoryData]);
+ 
   const startProcess = async (data: PyrolysisProcessData) => {
+    if (!data.kilnId) {
+      toast.error('Please select a kiln');
+      return;
+    }
+    if (!data.biomassTypeId) {
+      toast.error('Please select a biomass type');
+      return;
+    }
+    if (!data.inputQuantity || data.inputQuantity <= 0) {
+      toast.error('Please enter a valid input quantity');
+      return;
+    }
     setLoading(true);
     try {
+      // First get current inventory quantity
+      const { data: currentInventory, error: fetchError } = await supabase
+        .from('inventory')
+        .select('quantity')
+        .eq('farmer_id', data.farmerId)
+        .eq('biomass_type_id', data.biomassTypeId)
+        .single();
+ 
+      if (fetchError) throw fetchError;
+      if (!currentInventory) throw new Error('Inventory record not found');
+      const currentQuantity = parseFloat(currentInventory.quantity);
+      const inputQuantity = parseFloat(data.inputQuantity.toString());
+      const newQuantity = currentQuantity - inputQuantity;
+      
+      if (currentQuantity < inputQuantity) {
+        throw new Error('Input quantity exceeds available inventory');
+      }
+ 
+      // Then update the inventory with new quantity
+      console.log('Current inventory:', currentQuantity);
+      console.log('Input quantity:', inputQuantity);
+      console.log('New quantity:', newQuantity);
+ 
+      const { error: inventoryError } = await supabase
+        .from('inventory')
+        .update({ quantity: newQuantity })
+        .eq('farmer_id', data.farmerId)
+        .eq('biomass_type_id', data.biomassTypeId);
+ 
+      console.log('Inventory update error:', inventoryError);
+ 
+      if (inventoryError) throw inventoryError;
+ 
+      // Then create the process
       const { error } = await supabase.from('pyrolysis_processes').insert({
         kiln_id: data.kilnId,
         biomass_type_id: data.biomassTypeId,
@@ -253,12 +328,13 @@ const PyrolysisProcess = () => {
         created_at: new Date().toISOString(),
         updated_at: new Date().toISOString()
       });
-  
+ 
       if (error) throw error;
-      
+ 
       await fetchProcesses();
+      await fetchInventoryData(); // Refresh inventory data
       toast.success('Pyrolysis process started');
-      
+ 
       setFormData({
         kilnId: '',
         biomassTypeId: '',
@@ -273,7 +349,7 @@ const PyrolysisProcess = () => {
       setLoading(false);
     }
   };
-
+ 
   const completeProcess = async (process: Process) => {
     setLoading(true);
     try {
@@ -285,7 +361,7 @@ const PyrolysisProcess = () => {
           updated_at: new Date().toISOString()
         })
         .eq('id', process.id);
-
+ 
       if (error) throw error;
       toast.success('Pyrolysis process completed');
       setSelectedProcess(null);
@@ -298,30 +374,20 @@ const PyrolysisProcess = () => {
       setLoading(false);
     }
   };
-
-  // Generate a list of unique biomass types from collections
-  const getUniqueBiomassTypesFromCollections = () => {
-    const uniqueTypes = [];
-    const addedIds = new Set();
-    
-    for (const collection of biomassCollections) {
-      if (!addedIds.has(collection.biomass_type_id)) {
-        uniqueTypes.push({
-          id: collection.biomass_type_id,
-          name: collection.biomass_type ? collection.biomass_type.name : 'Unknown Type'
-        });
-        addedIds.add(collection.biomass_type_id);
-      }
+ 
+  // Remove the getUniqueBiomassTypesFromCollections function as we won't need it anymore
+ 
+  // Get biomass type for the selected farmer from inventory
+  const getSelectedFarmerBiomassType = () => {
+    const selectedFarmerInventoryItems = inventoryData.filter(item => item.farmer_id === formData.farmerId);
+    if (selectedFarmerInventoryItems.length > 0) {
+      return biomassTypes.filter(type =>
+        selectedFarmerInventoryItems.some(item => item.biomass_type_id === type.id)
+      );
     }
-    
-    return uniqueTypes;
+    return [];
   };
-
-  // Get biomass types to display in the dropdown
-  const displayBiomassTypes = getUniqueBiomassTypesFromCollections().length > 0 
-    ? getUniqueBiomassTypesFromCollections() 
-    : biomassTypes;
-
+ 
   return (
     <div className="space-y-6">
       <div className="flex justify-between items-center">
@@ -339,6 +405,43 @@ const PyrolysisProcess = () => {
               startProcess(formData);
             }}>
               <div className="space-y-4">
+ 
+                <div className="space-y-2">
+                  <Label htmlFor="farmerId">Farmer</Label>
+                  <Select
+                    onValueChange={(value) => {
+                      const farmerInventory = inventoryData.filter(item => item.farmer_id === value);
+                      console.log('Farmer Inventory:', farmerInventory);
+                      if (farmerInventory.length > 0) {
+                        // Get the first inventory item for initial values
+                        const firstInventory = farmerInventory[0];
+                        setFormData({
+                          ...formData,
+                          farmerId: value,
+                          biomassTypeId: firstInventory.biomass_type_id,
+                          inputQuantity: firstInventory.quantity
+                        });
+                      }
+                    }}
+                  >
+                    <SelectTrigger>
+                      <SelectValue placeholder="Select a farmer" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {Array.from(new Set(inventoryData.map(item => item.farmer_id))).map((farmerId) => {
+                        const farmer = inventoryData.find(item => item.farmer_id === farmerId);
+                        return (
+                          <SelectItem key={farmerId} value={farmerId}>
+                            {farmer?.farmers?.name}
+                          </SelectItem>
+                        );
+                      })}
+                    </SelectContent>
+                  </Select>
+                </div>
+ 
+              
+ 
                 <div className="space-y-2">
                   <Label htmlFor="kilnId">Kiln</Label>
                   <Select
@@ -357,7 +460,7 @@ const PyrolysisProcess = () => {
                     </SelectContent>
                   </Select>
                 </div>
-
+ 
                 <div className="space-y-2">
                   <Label htmlFor="biomassTypeId">Biomass Type</Label>
                   <Select
@@ -368,7 +471,7 @@ const PyrolysisProcess = () => {
                       <SelectValue placeholder="Select biomass type" />
                     </SelectTrigger>
                     <SelectContent>
-                      {displayBiomassTypes.map((type) => (
+                      {getSelectedFarmerBiomassType().map((type) => (
                         <SelectItem key={type.id} value={type.id}>
                           {type.name}
                         </SelectItem>
@@ -381,7 +484,7 @@ const PyrolysisProcess = () => {
                     </p>
                   )}
                 </div>
-
+ 
                 <div className="space-y-2">
                   <Label htmlFor="totalAvailableQuantity">Total Available Quantity</Label>
                   <Input
@@ -392,7 +495,7 @@ const PyrolysisProcess = () => {
                     className="bg-gray-50"
                   />
                 </div>
-
+ 
                 <div className="space-y-2">
                   <Label htmlFor="inputQuantity">Input Quantity</Label>
                   <Input
@@ -414,7 +517,7 @@ const PyrolysisProcess = () => {
                     </p>
                   )}
                 </div>
-
+ 
                 <div className="flex space-x-2">
                   <Button type="submit" disabled={loading}>
                     {loading ? 'Starting Process...' : 'Start Process'}
@@ -428,7 +531,7 @@ const PyrolysisProcess = () => {
           </DialogContent>
         </Dialog>
       </div>
-
+ 
       <Dialog open={!!selectedProcess} onOpenChange={(open) => !open && setSelectedProcess(null)}>
         <DialogContent className="sm:max-w-[425px]">
           <DialogHeader>
@@ -445,7 +548,7 @@ const PyrolysisProcess = () => {
                 placeholder="Enter output quantity"
               />
             </div>
-
+ 
             <div className="flex space-x-2">
               <Button
                 onClick={() => selectedProcess && completeProcess(selectedProcess)}
@@ -460,7 +563,7 @@ const PyrolysisProcess = () => {
           </div>
         </DialogContent>
       </Dialog>
-
+ 
       <Card>
         <CardHeader>
           <CardTitle>Process List</CardTitle>
@@ -515,5 +618,5 @@ const PyrolysisProcess = () => {
     </div>
   );
 };
-
+ 
 export default PyrolysisProcess;
