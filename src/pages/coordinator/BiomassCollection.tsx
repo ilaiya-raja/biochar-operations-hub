@@ -8,7 +8,7 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/u
 import { format } from 'date-fns';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { Plus } from 'lucide-react';
-
+ 
 const BiomassCollection = () => {
   const { userProfile } = useAuth();
   const [loading, setLoading] = useState(false);
@@ -27,7 +27,7 @@ const BiomassCollection = () => {
   
   // Add debugging state
   const [fetchError, setFetchError] = useState(null);
-
+ 
   // Update the collection date whenever dialog opens
   useEffect(() => {
     if (isDialogOpen) {
@@ -37,7 +37,7 @@ const BiomassCollection = () => {
       }));
     }
   }, [isDialogOpen]);
-
+ 
   const fetchCollections = async () => {
     try {
       const { data, error } = await supabase
@@ -49,7 +49,7 @@ const BiomassCollection = () => {
         `)
         .eq('coordinator_id', userProfile?.id)
         .order('collection_date', { ascending: false });
-
+ 
       if (error) throw error;
       setCollections(data || []);
     } catch (error) {
@@ -57,7 +57,7 @@ const BiomassCollection = () => {
       toast.error('Failed to load collections');
     }
   };
-
+ 
   useEffect(() => {
     const fetchData = async () => {
       setFetchingData(true);
@@ -72,7 +72,7 @@ const BiomassCollection = () => {
           .from('biomass_types')
           .select('id, name')
           .order('name');
-
+ 
         if (biomassTypesError) {
           console.error('Biomass types error:', biomassTypesError);
           setFetchError(biomassTypesError.message);
@@ -91,7 +91,7 @@ const BiomassCollection = () => {
             .select('id, name')
             .eq('location_id', userProfile.location_id)
             .order('name');
-
+ 
           if (farmersError) {
             console.error('Farmers error:', farmersError);
             setFetchError(farmersError.message);
@@ -101,7 +101,7 @@ const BiomassCollection = () => {
           console.log('Farmers fetched:', farmersData);
           setFarmers(farmersData || []);
         }
-
+ 
         // Fetch collections
         await fetchCollections();
       } catch (error) {
@@ -111,39 +111,84 @@ const BiomassCollection = () => {
         setFetchingData(false);
       }
     };
-
+ 
     fetchData();
   }, [userProfile?.location_id, userProfile?.id]);
-
+ 
   const handleSubmit = async (e) => {
     e.preventDefault();
     setLoading(true);
-
+ 
     if (!userProfile?.id) {
       toast.error('Coordinator ID not found');
       setLoading(false);
       return;
     }
-
+ 
     try {
-      const { data, error } = await supabase.from('biomass_collections').insert({
+      // Start a Supabase transaction
+      const { data: collectionData, error: collectionError } = await supabase.from('biomass_collections').insert({
         farmer_id: formData.farmerId,
         biomass_type_id: formData.biomassTypeId,
         coordinator_id: userProfile.id,
         quantity: parseFloat(formData.quantity),
         quantity_unit: formData.quantityUnit,
         collection_date: formData.collectionDate
-      }).select();
-
-      if (error) {
-        console.error('Error details:', error);
-        throw error;
+      }).select().single();
+ 
+      if (collectionError) {
+        throw collectionError;
       }
-
-      console.log('Recorded biomass collection:', data);
-
-      toast.success('Biomass collection recorded successfully');
-      // In the handleSubmit function, update the reset form data
+ 
+      // First, try to get the existing inventory record
+      const { data: existingInventory, error: fetchError } = await supabase
+        .from('inventory')
+        .select('quantity')
+        .eq('biomass_type_id', formData.biomassTypeId)
+        .single();
+ 
+      if (fetchError && fetchError.code !== 'PGRST116') { // PGRST116 is "not found" error
+        throw fetchError;
+      }
+ 
+      if (existingInventory) {
+        // Update existing inventory record
+        const { error: updateError } = await supabase
+          .from('inventory')
+          .update({
+            quantity: existingInventory.quantity + parseFloat(formData.quantity),
+            created_at: new Date().toISOString(),
+            farmer_id: formData.farmerId,
+            biomass_collection_id: collectionData.id,
+            coordinator_id: userProfile.id
+          })
+          .eq('biomass_type_id', formData.biomassTypeId);
+ 
+        if (updateError) {
+          throw updateError;
+        }
+      } else {
+        // Insert new inventory record if it doesn't exist
+        const { error: insertError } = await supabase
+          .from('inventory')
+          .insert({
+            biomass_type_id: formData.biomassTypeId,
+            quantity: parseFloat(formData.quantity),
+            quantity_unit: formData.quantityUnit,
+            created_at: new Date().toISOString(),
+            farmer_id: formData.farmerId,
+            biomass_collection_id: collectionData.id,
+            coordinator_id: userProfile.id
+          });
+ 
+        if (insertError) {
+          throw insertError;
+        }
+      }
+ 
+      console.log('Recorded biomass collection:', collectionData);
+      toast.success('Biomass collection and inventory recorded successfully');
+      
       setFormData({
         farmerId: '',
         biomassTypeId: '',
@@ -160,7 +205,7 @@ const BiomassCollection = () => {
       setLoading(false);
     }
   };
-
+ 
   return (
     <div className="space-y-6">
       <div className="flex justify-between items-center">
@@ -216,7 +261,7 @@ const BiomassCollection = () => {
           )}
         </CardContent>
       </Card>
-
+ 
       <Dialog open={isDialogOpen} onOpenChange={setIsDialogOpen}>
         <DialogContent className="sm:max-w-[600px]">
           <DialogHeader>
@@ -244,7 +289,7 @@ const BiomassCollection = () => {
                   {farmers.length === 0 && 'No farmers available for your location'}
                 </p>
               </div>
-
+ 
               <div className="space-y-2">
                 <label htmlFor="biomassTypeId" className="text-sm font-medium">Biomass Type</label>
                 <select
@@ -279,7 +324,7 @@ const BiomassCollection = () => {
                   step="0.01"
                 />
               </div>
-
+ 
               <div className="space-y-2">
                 <label htmlFor="quantityUnit" className="text-sm font-medium">Quantity Unit</label>
                 <select
@@ -294,7 +339,7 @@ const BiomassCollection = () => {
                   <option value="ton">Tons</option>
                 </select>
               </div>
-
+ 
               <div className="space-y-2">
                 <label htmlFor="collectionDate" className="text-sm font-medium">Collection Date</label>
                 <input
@@ -307,7 +352,7 @@ const BiomassCollection = () => {
                 />
               </div>
             </div>
-
+ 
             <Button type="submit" disabled={loading} className="w-full mt-6">
               {loading ? 'Recording...' : 'Record Collection'}
             </Button>
@@ -317,5 +362,5 @@ const BiomassCollection = () => {
     </div>
   );
 };
-
+ 
 export default BiomassCollection;
