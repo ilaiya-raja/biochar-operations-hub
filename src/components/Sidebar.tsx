@@ -96,7 +96,7 @@ export const Sidebar = ({ isOpen }: SidebarProps) => {
             "text-xl font-semibold whitespace-nowrap transition-all duration-300",
             collapsed ? "opacity-0 w-0" : "opacity-100 ml-2"
           )}>
-            Biochar Hub
+            Carbon Roots
           </span>
         </div>
       </div>

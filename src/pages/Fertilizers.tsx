@@ -1,4 +1,3 @@
-
 import { useState, useEffect } from 'react';
 import { Plus, Pencil, Trash2, Search } from 'lucide-react';
 import { Input } from '@/components/ui/input';
@@ -41,11 +40,10 @@ interface Fertilizer {
   quantity_unit: string;
   status: string;
   created_at: string;
-  location_id?: string;     // Add this line
-  coordinator_id?: string;  // Add this line
+  location_id?: string;
+  coordinator_id?: string;
 }
 
-// Add these interfaces after the Fertilizer interface
 interface Location {
   id: string;
   name: string;
@@ -54,11 +52,26 @@ interface Location {
 interface Coordinator {
   id: string;
   name: string;
-  location_id: string;  // Add this line
-  locations?: {        // Add this optional property
-    id: string;
-    name: string;
-  };
+  location_id: string;
+  locations?: Location | Location[];
+}
+
+interface Farmer {
+  id: string;
+  name: string;
+}
+
+// Improved BiomassType interface
+interface BiomassType {
+  name: string;
+}
+
+// Updated PyrolysisProcess interface to include biomass_types
+interface PyrolysisProcess {
+  biomass_type_id: string;
+  output_quantity: number;
+  end_time: string | null;
+  biomass_types?: BiomassType | BiomassType[];
 }
 
 const Fertilizers = () => {
@@ -72,11 +85,18 @@ const Fertilizers = () => {
   const [coordinators, setCoordinators] = useState<Coordinator[]>([]);
   const [coordinatorProfile, setCoordinatorProfile] = useState<Coordinator | null>(null);
   
+  // New state for the dropdown data
+  const [farmers, setFarmers] = useState<Farmer[]>([]);
+  
+  // New state for completed pyrolysis processes
+  const [completedBiomassTypes, setCompletedBiomassTypes] = useState<string[]>([]);
+  const [pyrolysisProcesses, setPyrolysisProcesses] = useState<PyrolysisProcess[]>([]);
+  
   // Update formData to include new fields
   const [formData, setFormData] = useState({
     name: '',
     type: '',
-    batch_number: '',
+    batch_number: 'first',
     produced_date: '',
     quantity: '',
     quantity_unit: 'kg',
@@ -152,7 +172,7 @@ const Fertilizers = () => {
     try {
       const { data, error } = await supabase
         .from('coordinators')
-        .select('id, name, location_id')  // Add location_id to the select
+        .select('id, name, location_id')
         .order('name');
       
       if (error) throw error;
@@ -169,6 +189,62 @@ const Fertilizers = () => {
     }
   };
 
+  // New function to fetch farmers
+  const fetchFarmers = async () => {
+    try {
+      const { data, error } = await supabase
+        .from('farmers')
+        .select('id, name')
+        .order('name');
+      
+      if (error) throw error;
+      setFarmers(data || []);
+    } catch (error) {
+      console.error('Error fetching farmers:', error);
+      toast.error('Failed to load farmers');
+    }
+  };
+
+  // Fixed function to fetch completed pyrolysis processes
+  const fetchCompletedPyrolysisProcesses = async () => {
+    try {
+      const { data, error } = await supabase
+        .from('pyrolysis_processes')
+        .select(`
+          biomass_type_id,
+          output_quantity,
+          end_time,
+          biomass_types:biomass_type_id (name)
+        `)
+        .not('end_time', 'is', null)
+        .order('end_time', { ascending: false });
+      
+      if (error) throw error;
+      
+      // Extract completed biomass types
+      const processes = data || [];
+      setPyrolysisProcesses(processes as PyrolysisProcess[]);
+      
+      // Get unique biomass type names
+      const uniqueBiomassTypes = [...new Set(processes.map(process => {
+        if (!process.biomass_types) return '';
+        
+        // Fix: Handle biomass_types properly regardless of its shape
+        if (Array.isArray(process.biomass_types)) {
+          return process.biomass_types.length > 0 ? process.biomass_types[0].name : '';
+        }
+        
+        // Access name property safely on the object
+        return (process.biomass_types as BiomassType).name || '';
+      }))].filter(name => name !== '');
+      
+      setCompletedBiomassTypes(uniqueBiomassTypes);
+    } catch (error) {
+      console.error('Error fetching completed pyrolysis processes:', error);
+      toast.error('Failed to load pyrolysis data');
+    }
+  };
+
   const fetchCoordinatorProfile = async () => {
     try {
       const { data: { user } } = await supabase.auth.getUser();
@@ -180,7 +256,7 @@ const Fertilizers = () => {
           id, 
           name,
           location_id,
-          locations:location_id (
+          locations (
             id,
             name
           )
@@ -191,15 +267,23 @@ const Fertilizers = () => {
       if (error) throw error;
       
       if (data) {
+        // Fix: Handle locations as an object or array based on the structure
+        let locationData: Location | undefined;
+        if (data.locations) {
+          if (Array.isArray(data.locations) && data.locations.length > 0) {
+            locationData = data.locations[0];
+          } else if (typeof data.locations === 'object') {
+            locationData = data.locations as unknown as Location;
+          }
+        }
+        
         const coordinatorData: Coordinator = {
           id: data.id,
           name: data.name,
           location_id: data.location_id,
-          locations: data.locations?.[0] ? {
-            id: data.locations[0].id,
-            name: data.locations[0].name
-          } : undefined
+          locations: locationData
         };
+        
         setCoordinatorProfile(coordinatorData);
         setFormData(prev => ({
           ...prev,
@@ -217,11 +301,37 @@ const Fertilizers = () => {
     fetchLocations();
     fetchCoordinators();
     fetchCoordinatorProfile();
+    fetchFarmers();
+    fetchCompletedPyrolysisProcesses(); // Fetch pyrolysis processes
   }, []);
 
   const handleInputChange = (e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement>) => {
     const { name, value } = e.target;
-    setFormData(prev => ({ ...prev, [name]: value }));
+    
+    if (name === 'type') {
+      // Find the matching pyrolysis process for this biomass type
+      const matchingProcess = pyrolysisProcesses.find(process => {
+        if (!process.biomass_types) return false;
+        
+        // Fix: Handle both array and object cases for biomass_types
+        if (Array.isArray(process.biomass_types)) {
+          return process.biomass_types.some(bt => bt.name === value);
+        } else {
+          return (process.biomass_types as BiomassType).name === value;
+        }
+      });
+      
+      // Set quantity based on matched pyrolysis process output_quantity
+      let quantity = '';
+      
+      if (matchingProcess && matchingProcess.output_quantity) {
+        quantity = matchingProcess.output_quantity.toString();
+      }
+      
+      setFormData(prev => ({ ...prev, [name]: value, quantity }));
+    } else {
+      setFormData(prev => ({ ...prev, [name]: value }));
+    }
   };
 
   const handleSubmit = async (e: React.FormEvent) => {
@@ -289,7 +399,7 @@ const Fertilizers = () => {
     setFormData({
       name: '',
       type: '',
-      batch_number: '',
+      batch_number: 'first',
       produced_date: '',
       quantity: '',
       quantity_unit: 'kg',
@@ -305,12 +415,12 @@ const Fertilizers = () => {
     setFormData({
       name: fertilizer.name,
       type: fertilizer.type,
-      batch_number: fertilizer.batch_number || '',
+      batch_number: fertilizer.batch_number || 'first',
       produced_date: fertilizer.produced_date ? new Date(fertilizer.produced_date).toISOString().split('T')[0] : '',
       quantity: fertilizer.quantity.toString(),
       quantity_unit: fertilizer.quantity_unit,
       status: fertilizer.status,
-      location_id: coordinatorProfile?.location_id || '',
+      location_id: fertilizer.location_id || coordinatorProfile?.location_id || '',
       coordinator_id: coordinatorProfile?.id || ''
     });
     setIsDialogOpen(true);
@@ -445,44 +555,68 @@ const Fertilizers = () => {
           </DialogHeader>
           <form onSubmit={handleSubmit}>
             <div className="grid gap-4 py-4">
+              {/* Farmer Name dropdown */}
               <div className="grid grid-cols-4 items-center gap-4">
                 <Label htmlFor="name" className="text-right">
-                  Name
+                  Farmer Name
                 </Label>
-                <Input
+                <select
                   id="name"
                   name="name"
                   value={formData.name}
                   onChange={handleInputChange}
-                  className="col-span-3"
+                  className="px-3 py-2 border rounded-md col-span-3"
                   required
-                />
+                >
+                  <option value="">Select a farmer</option>
+                  {farmers.map(farmer => (
+                    <option key={farmer.id} value={farmer.name}>
+                      {farmer.name}
+                    </option>
+                  ))}
+                </select>
               </div>
+              
+              {/* Biomass Type dropdown - UPDATED to show completed biomass types */}
               <div className="grid grid-cols-4 items-center gap-4">
                 <Label htmlFor="type" className="text-right">
-                  Type
+                  Biomass Type
                 </Label>
-                <Input
+                <select
                   id="type"
                   name="type"
                   value={formData.type}
                   onChange={handleInputChange}
-                  className="col-span-3"
+                  className="px-3 py-2 border rounded-md col-span-3"
                   required
-                />
+                >
+                  <option value="">Select biomass type</option>
+                  {completedBiomassTypes.map(type => (
+                    <option key={type} value={type}>
+                      {type}
+                    </option>
+                  ))}
+                </select>
               </div>
+              
+              {/* Batch Number dropdown */}
               <div className="grid grid-cols-4 items-center gap-4">
                 <Label htmlFor="batch_number" className="text-right">
                   Batch Number
                 </Label>
-                <Input
+                <select
                   id="batch_number"
                   name="batch_number"
                   value={formData.batch_number}
                   onChange={handleInputChange}
-                  className="col-span-3"
-                />
+                  className="px-3 py-2 border rounded-md col-span-3"
+                >
+                  <option value="first">First</option>
+                  <option value="second">Second</option>
+                  <option value="third">Third</option>
+                </select>
               </div>
+              
               <div className="grid grid-cols-4 items-center gap-4">
                 <Label htmlFor="produced_date" className="text-right">
                   Production Date
@@ -496,6 +630,8 @@ const Fertilizers = () => {
                   className="col-span-3"
                 />
               </div>
+              
+              {/* Auto-filled quantity based on biomass type */}
               <div className="grid grid-cols-4 items-center gap-4">
                 <Label htmlFor="quantity" className="text-right">
                   Quantity
@@ -510,6 +646,7 @@ const Fertilizers = () => {
                     onChange={handleInputChange}
                     className="flex-1"
                     required
+                    readOnly={formData.type !== ''}
                   />
                   <select
                     id="quantity_unit"

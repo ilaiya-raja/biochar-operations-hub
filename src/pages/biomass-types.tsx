@@ -269,7 +269,6 @@ const BiomassTypes = () => {
           <DialogHeader>
             <DialogTitle>Add New Biomass Type</DialogTitle>
           </DialogHeader>
-          // Add the code field to the form
           <form onSubmit={handleSubmit} className="space-y-4">
             <div className="space-y-4">
               <div className="space-y-2">
