@@ -79,14 +79,14 @@ export const Sidebar = ({ isOpen }: SidebarProps) => {
     <aside 
       className={cn(
         "fixed inset-y-0 left-0 z-20 flex flex-col bg-sidebar border-r border-sidebar-border",
-        "transition-all duration-300 ease-in-out",
+        "transition-all duration-300 ease-in-out h-screen overflow-hidden", // Added overflow-hidden
         collapsed ? "w-20" : "w-75",
         isOpen ? "translate-x-0" : "-translate-x-full",
-        "md:relative md:translate-x-0"
+        "md:sticky md:top-0" // Changed from md:relative to md:sticky
       )}
     >
       {/* Header without toggle button */}
-      <div className="flex h-16 items-center border-b border-sidebar-border px-3">
+      <div className="flex h-16 shrink-0 items-center border-b border-sidebar-border px-3">
         <div className={cn(
           "flex items-center text-sidebar-foreground transition-all duration-300", 
           collapsed ? "justify-center w-full" : "gap-2"
@@ -102,7 +102,7 @@ export const Sidebar = ({ isOpen }: SidebarProps) => {
       </div>
 
       {/* Main navigation content */}
-      <div className="flex-1 overflow-y-auto py-4">
+      <div className="flex-1 overflow-y-auto py-4 scrollbar-hide">
         <nav className={cn("space-y-1", collapsed ? "px-1" : "px-3")}>
           {navigation.map((item) => {
             if (item.children) {
@@ -176,7 +176,7 @@ export const Sidebar = ({ isOpen }: SidebarProps) => {
       </div>
 
       {/* New footer with toggle button */}
-      <div className="border-t border-sidebar-border p-3">
+      <div className="border-t border-sidebar-border p-3 shrink-0">
         <button 
           onClick={toggleSidebar}
           className={cn(
