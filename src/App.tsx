@@ -20,6 +20,9 @@ import BiomassCollection from "@/pages/coordinator/BiomassCollection";
 import PyrolysisProcess from "@/pages/coordinator/PyrolysisProcess";
 import FertilizerDistribution from "@/pages/coordinator/FertilizerDistribution";
 import ResetPassword from "@/pages/ResetPassword";
+import SetPassword from "@/pages/set-password";
+import BiomassTypes from "./pages/biomass-types";
+// First fix the import path
 
 const queryClient = new QueryClient();
 
@@ -34,6 +37,7 @@ const App = () => (
             <Route path="/" element={<Navigate to="/dashboard" replace />} />
             <Route path="/login" element={<Login />} />
             <Route path="/reset-password" element={<ResetPassword />} />
+          <Route path="/set-password" element={<SetPassword />} />
             
             <Route element={<PrivateRoute />}>
               <Route element={<DashboardLayout />}>
@@ -43,6 +47,7 @@ const App = () => (
                 <Route element={<PrivateRoute allowedRoles={['admin', 'coordinator']} />}>
                   <Route path="/farmers" element={<Farmers />} />
                   <Route path="/biomass" element={<Biomass />} />
+                  <Route path="/biomass-types" element={<BiomassTypes />} />  {/* Added this route */}
                   <Route path="/locations" element={<Locations />} />
                   <Route path="/coordinators" element={<Coordinator />} />
                   <Route path="/kilns" element={<Kiln />} />
